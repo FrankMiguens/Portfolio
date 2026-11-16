@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Background Video</title>
+    <style>
+      html,
+      body,
+      .video-background {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #000;
+      }
+
+      iframe {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: max(100vw, 177.78vh);
+        height: max(100vh, 56.25vw);
+        border: 0;
+        transform: translate(-50%, -50%);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="video-background">
+      <iframe
+        id="video"
+        allow="autoplay; fullscreen; picture-in-picture"
+        title="Video de Patricio Plaza"
+      ></iframe>
+    </div>
+    <script>
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      const params = new URLSearchParams({
+        autoplay: reducedMotion ? "0" : "1",
+        autopause: "0",
+        background: "1",
+        controls: "0",
+        loop: "1",
+        muted: "1",
+        playsinline: "1",
+        title: "0",
+        byline: "0",
+        portrait: "0",
+      })
+      document.querySelector("#video").src = `https://player.vimeo.com/video/697236071?${params}`
+    </script>
+  </body>
+</html>
