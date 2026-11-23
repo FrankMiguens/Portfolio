@@ -816,6 +816,7 @@ function Sidebar({
   setLanguage: (language: Language) => void
 }) {
   const t = copy[language]
+  const [menuOpen, setMenuOpen] = useState(false)
   const sections = ["inicio", "bio", "films", "contacto"]
   const activeSection = route.startsWith("film/") || route === "films" ? "films" : sections.includes(route) ? route : ""
   const navItems: [string, string][] = [
@@ -825,15 +826,85 @@ function Sidebar({
     ["contacto", t.contact],
   ]
 
+  useEffect(() => {
+    setMenuOpen(false)
+  }, [route])
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false)
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [menuOpen])
+
   return (
-    <header className="sidebar">
-      <nav aria-label={t.mainNav} className="section-nav">
+    <header className={`sidebar ${menuOpen ? "is-menu-open" : ""}`}>
+      {/* Barra superior visible exclusivamente en móviles */}
+      <div className="mobile-header-bar">
+        <a className="mobile-brand" href="#/inicio" onClick={() => setMenuOpen(false)}>
+          Patricio Plaza
+        </a>
+        <div className="mobile-controls">
+          <div aria-label={t.language} className="language-selector" role="group">
+            <button
+              aria-pressed={language === "ES"}
+              className={language === "ES" ? "active" : ""}
+              lang="es"
+              onClick={() => setLanguage("ES")}
+              type="button"
+            >
+              ES
+            </button>
+            <span aria-hidden="true">/</span>
+            <button
+              aria-pressed={language === "EN"}
+              className={language === "EN" ? "active" : ""}
+              lang="en"
+              onClick={() => setLanguage("EN")}
+              type="button"
+            >
+              EN
+            </button>
+          </div>
+          <button
+            aria-controls="mobile-primary-nav"
+            aria-expanded={menuOpen}
+            aria-label={
+              menuOpen
+                ? language === "ES"
+                  ? "Cerrar menú"
+                  : "Close menu"
+                : language === "ES"
+                  ? "Abrir menú"
+                  : "Open menu"
+            }
+            className="mobile-menu-toggle"
+            onClick={() => setMenuOpen((open) => !open)}
+            type="button"
+          >
+            <span className={`menu-icon ${menuOpen ? "is-open" : ""}`} aria-hidden="true">
+              <span className="menu-bar" />
+              <span className="menu-bar" />
+              <span className="menu-bar" />
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <nav
+        aria-label={t.mainNav}
+        className={`section-nav ${menuOpen ? "is-open" : ""}`}
+        id="mobile-primary-nav"
+      >
         {navItems.map(([href, label]) => (
           <a
             aria-current={activeSection === href ? "page" : undefined}
             className={activeSection === href ? "active" : ""}
             href={`#/${href}`}
             key={href}
+            onClick={() => setMenuOpen(false)}
           >
             <span className="section-indicator" aria-hidden="true">
               <svg height="12" viewBox="0 0 12 12" width="12">
@@ -844,7 +915,7 @@ function Sidebar({
           </a>
         ))}
       </nav>
-      <div className="sidebar-bottom">
+      <div className="sidebar-bottom desktop-only">
         <div aria-label={t.language} className="language-selector" role="group">
           <button
             aria-pressed={language === "ES"}
@@ -1032,30 +1103,12 @@ function HeroCarousel({ language }: { language: Language }) {
         })}
       </div>
 
-      {/* Cartel / bloque de títulos: rosa con 85% de opacidad y tipografía negra.
-          Aparece únicamente después de terminar la animación. Nunca se desplaza con la foto encima. */}
+      {/* Cartel / bloque de títulos: aparece únicamente después de terminar la animación */}
       {currentItem?.title && (
         <div className={`hero-label ${cartelVisible ? "is-visible" : ""}`}>
           {currentItem.title}
         </div>
       )}
-
-      <button
-        aria-label={userPaused ? t.playSlides : t.pauseSlides}
-        className="hero-control hero-pause"
-        onClick={() => setUserPaused((value) => !value)}
-        type="button"
-      >
-        {userPaused ? (
-          <svg aria-hidden="true" fill="currentColor" height="14" viewBox="0 0 12 12" width="14">
-            <path d="M2 1L11 6L2 11V1Z" />
-          </svg>
-        ) : (
-          <svg aria-hidden="true" fill="currentColor" height="14" viewBox="0 0 12 12" width="14">
-            <path d="M2 1h3v10H2zM7 1h3v10H7z" />
-          </svg>
-        )}
-      </button>
 
       <div className="hero-bottom-right">
         <a
