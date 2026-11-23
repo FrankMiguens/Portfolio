@@ -728,7 +728,7 @@ button {
   grid-column: 5 / -1;
 }
 
-/* Destacado en Bio: un recuadro blanco, detrás un recuadro solo con borde/línea rosa, y el texto en negro por encima */
+/* Destacado en Bio: tratamiento gris con letras blancas y acento en rosa */
 .bio-featured-statement {
   position: relative;
   margin: 0 0 44px;
@@ -738,10 +738,10 @@ button {
 .bio-featured-statement::before {
   content: "";
   position: absolute;
-  top: 10px;
-  left: 10px;
-  right: -10px;
-  bottom: -10px;
+  top: 8px;
+  left: 8px;
+  right: -8px;
+  bottom: -8px;
   border: 1.5px solid var(--accent);
   background: transparent;
   pointer-events: none;
@@ -752,7 +752,8 @@ button {
 .bio-statement-box {
   position: relative;
   z-index: 1;
-  background: #ffffff;
+  background: #111111;
+  border: 1px solid #262626;
   border-radius: 2px;
   padding: 24px 28px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
@@ -762,12 +763,12 @@ button {
   margin: 0;
   font-size: clamp(18px, 1.8vw, 22px);
   font-weight: 600;
-  line-height: 1.45;
+  line-height: 1.5;
   letter-spacing: -0.015em;
-  color: #000000;
+  color: #ffffff;
 }
 
-/* 4 Bloques Semánticos de Bio */
+/* 4 Bloques Semánticos de Bio: estructura uniforme */
 .bio-thematic-blocks {
   display: flex;
   flex-direction: column;
@@ -788,37 +789,19 @@ button {
   letter-spacing: 0.02em;
 }
 
+/* Únicamente crecen de tamaño los títulos de Formación, Experiencia Profesional y Obra */
+.bio-theme-title.is-prominent-title {
+  font-size: clamp(20px, 2.2vw, 26px);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
 .bio-theme-text {
   margin: 0;
   font-size: 16px;
   line-height: 1.7;
   color: rgba(245, 244, 241, 0.82);
   max-width: 68ch;
-}
-
-/* Formación: mayor tamaño y peso de texto para marcar jerarquía */
-.bio-theme-card.is-formacion .bio-theme-text {
-  font-size: 18.5px;
-  font-weight: 500;
-  line-height: 1.65;
-  color: #ffffff;
-}
-
-/* Experiencia Profesional: bloque/texto más chico y con estilo/disposición irregular */
-.bio-theme-card.is-experiencia {
-  margin-left: 20px;
-  padding: 14px 20px;
-  border-left: 2px solid rgba(226, 61, 141, 0.45);
-  background: rgba(255, 255, 255, 0.015);
-  border-radius: 0 2px 2px 0;
-  max-width: 58ch;
-}
-
-.bio-theme-card.is-experiencia .bio-theme-text {
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 1.65;
-  color: rgba(245, 244, 241, 0.76);
 }
 
 /* Films Page (Listado) */
@@ -1276,18 +1259,19 @@ button {
   width: 36px;
   height: 36px;
   place-items: center;
-  background: rgba(0, 0, 0, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 50%;
+  background: transparent;
+  border: none;
+  border-radius: 0;
   color: #ffffff;
   cursor: pointer;
   transition: all 200ms ease;
 }
 
 .laurels-arrow:hover:not(:disabled) {
-  background: var(--accent);
-  color: #000000;
-  border-color: var(--accent);
+  background: transparent;
+  color: var(--accent);
+  border: none;
+  transform: translateY(-50%) scale(1.15);
 }
 
 .laurels-arrow:disabled {
@@ -1448,15 +1432,22 @@ button {
 .lightbox-close {
   top: 24px;
   right: 24px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: #ffffff;
+  cursor: pointer;
 }
 
 .lightbox-close:hover {
-  background: var(--accent);
-  color: #000;
-  border-color: var(--accent);
+  background: transparent;
+  color: var(--accent);
+  border: none;
+  transform: scale(1.15);
 }
 
 .lightbox-arrow {
@@ -1518,18 +1509,19 @@ button {
   height: 40px;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  border: 1px solid #22222a;
-  background: #08080b;
+  background: transparent;
+  border: none;
+  border-radius: 0;
   color: #ffffff;
   transition: all 200ms ease;
 }
 
 .film-pagination .pagination-newer:hover,
 .film-pagination .pagination-older:hover {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #000000;
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  transform: scale(1.15);
 }
 
 .pagination-empty {
@@ -1590,14 +1582,15 @@ button {
 
 .contact-form-card {
   padding: 32px;
-  background: #141418;
-  border: 1px solid #262630;
-  border-radius: 4px;
+  background: #111111;
+  border: 1px solid #262626;
+  border-radius: 2px;
+  color: #ffffff;
 }
 
 .form-card-title {
   margin: 0 0 24px;
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 600;
   color: #ffffff;
 }
@@ -1617,18 +1610,56 @@ button {
 
 .contact-channel-card {
   padding: 24px;
-  background: #141418;
-  border: 1px solid #262630;
-  border-radius: 4px;
+  background: #111111;
+  border: 1px solid #262626;
+  border-radius: 2px;
+  color: #ffffff;
   transition: border-color 200ms ease;
 }
 
 .contact-channel-card:hover {
-  border-color: var(--accent);
+  border-color: #444444;
+}
+
+.contact-channel-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.contact-photo-frame {
+  width: 58px;
+  height: 58px;
+  border-radius: 2px;
+  overflow: hidden;
+  border: 1px solid #262626;
+  flex-shrink: 0;
+  background: #000000;
+}
+
+.contact-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 20%;
+  filter: grayscale(100%);
+  transition: filter 250ms ease;
+}
+
+.contact-channel-card:hover .contact-photo {
+  filter: grayscale(0%);
+}
+
+.contact-channel-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .channel-badge {
   display: inline-block;
+  align-self: flex-start;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
@@ -1636,13 +1667,14 @@ button {
   padding: 3px 8px;
   border-radius: 2px;
   background: rgba(226, 61, 141, 0.15);
+  border: 1px solid rgba(226, 61, 141, 0.35);
   color: var(--accent);
-  margin-bottom: 10px;
+  margin-bottom: 4px;
 }
 
 .contact-channel-card h3 {
   margin: 0 0 6px;
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 600;
   color: #ffffff;
 }
@@ -1650,8 +1682,8 @@ button {
 .contact-channel-card p {
   margin: 0 0 16px;
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.65);
-  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.55;
 }
 
 .channel-email-btn {
@@ -1659,9 +1691,9 @@ button {
   align-items: center;
   gap: 10px;
   padding: 10px 16px;
-  background: #000000;
-  border: 1px solid #2a2a36;
-  border-radius: 3px;
+  background: #18181c;
+  border: 1px solid #2e2e38;
+  border-radius: 2px;
   font-size: 14px;
   font-weight: 500;
   color: #ffffff;

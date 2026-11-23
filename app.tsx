@@ -1121,15 +1121,18 @@ function BioPage({ language }: { language: Language }) {
           </Reveal>
 
           <div className="bio-thematic-blocks">
-            {t.bioThemes.map((theme, index) => (
-              <Reveal
-                className={`bio-theme-card ${index === 0 ? "is-formacion" : index === 1 ? "is-experiencia" : ""}`}
-                key={theme.title}
-              >
-                <h3 className="bio-theme-title">{theme.title}</h3>
-                <p className="bio-theme-text">{theme.content}</p>
-              </Reveal>
-            ))}
+            {t.bioThemes.map((theme, index) => {
+              // Crecen únicamente de tamaño los títulos de Formación, Experiencia Profesional y Obra
+              const isProminentTitle = index === 0 || index === 1 || index === 2
+              return (
+                <Reveal className="bio-theme-card" key={theme.title}>
+                  <h3 className={`bio-theme-title ${isProminentTitle ? "is-prominent-title" : ""}`}>
+                    {theme.title}
+                  </h3>
+                  <p className="bio-theme-text">{theme.content}</p>
+                </Reveal>
+              )
+            })}
           </div>
         </div>
       </div>
@@ -1280,28 +1283,32 @@ function Lightbox({
 
       {total > 1 && (
         <>
-          <button
-            aria-label={t.previous}
-            className="lightbox-arrow previous"
-            onClick={(event) => {
-              event.stopPropagation()
-              goPrevious()
-            }}
-            type="button"
-          >
-            <Triangle dir="left" size={22} />
-          </button>
-          <button
-            aria-label={t.next}
-            className="lightbox-arrow next"
-            onClick={(event) => {
-              event.stopPropagation()
-              goNext()
-            }}
-            type="button"
-          >
-            <Triangle size={22} />
-          </button>
+          {index > 0 && (
+            <button
+              aria-label={t.previous}
+              className="lightbox-arrow previous"
+              onClick={(event) => {
+                event.stopPropagation()
+                setIndex((current) => Math.max(0, current - 1))
+              }}
+              type="button"
+            >
+              <Triangle dir="left" size={22} />
+            </button>
+          )}
+          {index < total - 1 && (
+            <button
+              aria-label={t.next}
+              className="lightbox-arrow next"
+              onClick={(event) => {
+                event.stopPropagation()
+                setIndex((current) => Math.min(total - 1, current + 1))
+              }}
+              type="button"
+            >
+              <Triangle size={22} />
+            </button>
+          )}
         </>
       )}
 
@@ -1379,24 +1386,26 @@ function LaurelsStrip({
       <ul aria-label={label} className="laurels" ref={ref} tabIndex={0} title={title}>
         {children}
       </ul>
-      <button
-        aria-label={prevLabel}
-        className="laurels-arrow previous"
-        disabled={edges.start}
-        onClick={() => scrollByPage(-1)}
-        type="button"
-      >
-        <Triangle dir="left" size={14} />
-      </button>
-      <button
-        aria-label={nextLabel}
-        className="laurels-arrow next"
-        disabled={edges.end}
-        onClick={() => scrollByPage(1)}
-        type="button"
-      >
-        <Triangle size={14} />
-      </button>
+      {hasOverflow && !edges.start && (
+        <button
+          aria-label={prevLabel}
+          className="laurels-arrow previous"
+          onClick={() => scrollByPage(-1)}
+          type="button"
+        >
+          <Triangle dir="left" size={14} />
+        </button>
+      )}
+      {hasOverflow && !edges.end && (
+        <button
+          aria-label={nextLabel}
+          className="laurels-arrow next"
+          onClick={() => scrollByPage(1)}
+          type="button"
+        >
+          <Triangle size={14} />
+        </button>
+      )}
     </div>
   )
 }
@@ -1796,8 +1805,15 @@ function ContactPage({ language }: { language: Language }) {
           {/* Dos vías de contacto directo bien diferenciadas visualmente */}
           <div className="contact-channels">
             <div className="contact-channel-card personal">
-              <span className="channel-badge">{t.personalContactBadge}</span>
-              <h3>{t.personalContactTitle}</h3>
+              <div className="contact-channel-header">
+                <div className="contact-photo-frame">
+                  <FallbackImg alt="Patricio Plaza" className="contact-photo" src="bio/recurso-1.png" />
+                </div>
+                <div className="contact-channel-title-wrap">
+                  <span className="channel-badge">{t.personalContactBadge}</span>
+                  <h3>{t.personalContactTitle}</h3>
+                </div>
+              </div>
               <p>{t.personalContactDesc}</p>
               <a className="channel-email-btn" href={`mailto:${CONTACT_EMAIL}`}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
