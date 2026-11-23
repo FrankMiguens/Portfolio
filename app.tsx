@@ -9,58 +9,53 @@ import {
   type ReactNode,
   type TouchEvent as ReactTouchEvent,
 } from "react"
-import { createPortal } from "react-dom"
- 
+
 type Language = "ES" | "EN"
-type Theme = "light" | "dark"
- 
+type Theme = "dark"
+
 type L10n = { ES: string; EN: string }
- 
-type Credit = { role: L10n; people: string }
- 
-type Film = {
+
+const CONTACT_EMAIL = "info@patricioplaza.com.ar"
+const STUDIO_EMAIL = "contacto@ojoraro.com.ar"
+const FORM_ENDPOINT = "" // Endpoint de servicio de correo (Formspree, Basin, etc.)
+
+interface Film {
   slug: string
   title: string
   year: string
-  status?: "development"
-  feature?: boolean
-  preview?: string
-  synopsis?: L10n
-  credits?: Credit[]
-  duration?: string
-  coProduction?: string[]
-  youtube?: { id: string; start?: number } // video de portada (id de YouTube + segundo de inicio opcional)
-  vimeo?: string // TODO: reemplazar por la URL de cada película
-  laurelsFolder?: string // subcarpeta dentro de public/laureles_películas/ donde están los PNG de esta película
-  laurels?: string[] // nombres de archivo (sin extensión), en el orden en que aparecen en ojoraro.com.ar
+  status: "completed" | "development"
+  preview: string
+  youtube?: { id: string; start?: number }
+  vimeo?: { id?: string; url?: string }
+  synopsis: L10n
+  screenplay: string
+  direction: string
+  production: string
+  genre: L10n
+  technique: L10n
+  duration: L10n
+  target: L10n
+  laurelsFolder?: string
+  laurels?: string[]
+  markets?: { name: string; tag: string }[]
   stills: string[]
 }
- 
-/* Rutas de imágenes. Si algo no carga en producción, probá "/hero_pp", "/stills_pp" y "/laureles" (con barra inicial). */
+
 const HERO_DIR = "hero_pp"
 const STILLS_DIR = "stills_pp"
-// Laureles: public/laureles_películas/<carpeta de la película>/<archivo>.png (misma estructura que el zip)
 const LAURELS_DIR = `${encodeURIComponent("laureles_películas")}`
-// Parásitos Perfectos: public/ParasitosPerfectos/<archivo>.png (misma estructura que el zip)
 const PP_DIR = "ParasitosPerfectos"
 const HERO_EXT = "png"
 const STILLS_EXT = "png"
 const LAURELS_EXT = "png"
 const PP_EXT = "png"
- 
-// encodeURIComponent convierte los espacios en %20 (hay nombres con espacios)
+
 const still = (name: string) => `${STILLS_DIR}/${encodeURIComponent(name)}.${STILLS_EXT}`
 const hero = (name: string) => `${HERO_DIR}/${encodeURIComponent(name)}.${HERO_EXT}`
 const laurel = (folder: string, name: string) =>
   `${LAURELS_DIR}/${encodeURIComponent(folder)}/${encodeURIComponent(name)}.${LAURELS_EXT}`
-// Respeta mayúsculas/minúsculas tal como están los archivos ("CONCEPT 01", "concept 03", etc.)
 const pp = (name: string) => `${PP_DIR}/${encodeURIComponent(name)}.${PP_EXT}`
- 
-// Atajo para escribir un rol de la ficha en los dos idiomas
-const role = (ES: string, EN: string): L10n => ({ ES, EN })
- 
-/* Triángulo (el mismo del indicador del menú lateral) que reemplaza todas las flechas del sitio.
-   El color se define con --triangle en index.css (blanco sobre fondos oscuros). */
+
 function Triangle({ dir = "right", size = 10 }: { dir?: "left" | "right"; size?: number }) {
   return (
     <svg
@@ -75,13 +70,11 @@ function Triangle({ dir = "right", size = 10 }: { dir?: "left" | "right"; size?:
     </svg>
   )
 }
- 
-/* Imágenes con reintento: si un archivo no carga, prueba variantes probables del nombre
-   (mayúsculas/minúsculas, espacios, extensión, con y sin "public/"). Recuerda la que funcionó. */
+
 const resolvedSrc: Record<string, string> = {}
- 
+
 function imageCandidates(src: string): string[] {
-  const match = src.match(/^(.*\/)?([^/]*?)(?:\.([a-zA-Z0-9]+))?$/)
+  const match = src.match(/^(.*\/)?([^\/]*?)(?:\.([a-zA-Z0-9]+))?$/)
   if (!match) return [src]
   const dir = match[1] ?? ""
   let name = match[2]
@@ -91,24 +84,34 @@ function imageCandidates(src: string): string[] {
     /* nombre ya decodificado */
   }
   const ext = match[3] ?? "png"
- 
+
   const seeds = new Set<string>([name])
   const addAll = (fn: (value: string) => string) => [...seeds].forEach((seed) => seeds.add(fn(seed)))
   addAll((v) => v.replace("_ stills", "_stills"))
   addAll((v) => v.replace("_stills", "_ stills"))
   addAll((v) => v.replace("santasombra", "santa sombra"))
   addAll((v) => v.replace("santasombra", "santa_sombra"))
+  addAll((v) => v.replace("santasombra", "santasombre"))
+  addAll((v) => v.replace("santasombre", "santasombra"))
   const names = new Set<string>()
   seeds.forEach((seed) => {
     names.add(seed)
     names.add(seed.toLowerCase())
     names.add(seed.toUpperCase())
   })
- 
+
   const dirs = new Set<string>([dir])
   if (dir.startsWith("public/")) dirs.add(dir.slice("public/".length))
   else if (dir.startsWith("/")) dirs.add(dir.slice(1))
- 
+
+  // Soporte de auditoría de rutas Hero Steels / hero_pp / stills_pp
+  if (dir.toLowerCase().includes("hero steels") || dir.toLowerCase().includes("hero_steels")) {
+    dirs.add("stills_pp/")
+    dirs.add("hero_pp/")
+  }
+  if (dir.includes("_laureles_Bl")) dirs.add(dir.replace("_laureles_Bl", "_laureles"))
+  if (dir.includes("_laureles/")) dirs.add(dir.replace("_laureles/", "_laureles_Bl/"))
+
   const exts = [ext, ...["png", "webp", "jpg", "jpeg"].filter((value) => value !== ext)]
   const list: string[] = []
   dirs.forEach((d) =>
@@ -116,7 +119,7 @@ function imageCandidates(src: string): string[] {
   )
   return [src, ...list.filter((candidate) => candidate !== src)]
 }
- 
+
 function FallbackImg({
   src,
   hideOnFail,
@@ -128,9 +131,9 @@ function FallbackImg({
   const [attempt, setAttempt] = useState(0)
   const [failed, setFailed] = useState(false)
   const current = resolvedSrc[src] ?? list[attempt]
- 
+
   if (failed && hideOnFail) return null
- 
+
   return (
     <img
       {...props}
@@ -148,24 +151,76 @@ function FallbackImg({
     />
   )
 }
- 
-const youtubeEmbed = ({ id, start }: { id: string; start?: number }) =>
-  `https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1${start ? `&start=${start}` : ""}`
- 
-/* Orden: de más nuevo a más viejo */
+
+function Reveal({
+  children,
+  className = "",
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const node = ref.current
+    if (!node) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.1 },
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <div className={`reveal ${visible ? "is-visible" : ""} ${className}`} ref={ref}>
+      {children}
+    </div>
+  )
+}
+
 const films: Film[] = [
   {
     slug: "diarios-negros",
     title: "Diarios Negros",
-    year: "",
+    year: "2026",
     status: "development",
-    feature: true,
-    preview: "films/diarios%20negros%20(1).jpg",
+    preview: still("diariosnegros_ stills_01"),
     synopsis: {
-      ES: "A comienzos del siglo XX, el diplomático británico Roger Casement presencia atrocidades coloniales en el Congo y el Amazonas, rompe con la Corona y se suma al movimiento independentista irlandés. Arrestado por traición, sus diarios personales de contenido sexual se usan para desacreditarlo.",
-      // TODO: traducción mía; reemplazar por el texto en inglés de ojoraro.com.ar/diarios-negros/
-      EN: "In the early twentieth century, British diplomat Roger Casement witnesses colonial atrocities in the Congo and the Amazon, breaks with the Crown and joins the Irish independence movement. Arrested for treason, his personal diaries of a sexual nature are used to discredit him.",
+      ES: "A comienzos del siglo XX, el diplomático británico Roger Casement presencia atrocidades coloniales en el Congo y el Amazonas, rompe con la Corona y se suma al movimiento independentista irlandés. Tras ser arrestado por traición, sus diarios personales de contenido sexual son utilizados para desacreditarlo.",
+      EN: "In the early twentieth century, British diplomat Roger Casement witnesses colonial atrocities in the Congo and the Amazon, breaks with the Crown, and joins the Irish independence movement. Arrested for treason, his personal diaries of a sexual nature are weaponised to discredit him.",
     },
+    screenplay: "Patricio Plaza",
+    direction: "Patricio Plaza",
+    production: "Ojo Raro",
+    genre: {
+      ES: "Drama biográfico / Histórico / Queer",
+      EN: "Biographical Drama / Historical / Queer",
+    },
+    technique: {
+      ES: "Largometraje / Animación 2D",
+      EN: "Feature Film / 2D Animation",
+    },
+    duration: {
+      ES: "Largometraje (85 min)",
+      EN: "Feature Film (85 min)",
+    },
+    target: {
+      ES: "Adultos (+16)",
+      EN: "Adults (16+)",
+    },
+    markets: [
+      { name: "NEF Animation", tag: "Résidence d'écriture de Fontevraud (Francia)" },
+      { name: "La Maison des Auteurs", tag: "Résidence Angoulême (Francia)" },
+      { name: "Cité internationale des arts", tag: "Résidence d'écriture Paris" },
+      { name: "INCAA / FNA", tag: "Fondo Nacional de las Artes & Concurso Federal" },
+    ],
     stills: [
       still("diariosnegros_ stills_01"),
       still("diariosnegros_ stills_02"),
@@ -173,44 +228,76 @@ const films: Film[] = [
     ],
   },
   {
-    // Sin ficha ni sinopsis en ojoraro.com.ar: completar cuando estén
     slug: "parasitos-perfectos",
     title: "Parásitos Perfectos",
-    year: "",
+    year: "2026",
     status: "development",
-    preview: pp("CONCEPT 01"), // portada de la página (y del hero, ver heroImages)
+    preview: still("parasitosperfectos_still_01"),
+    synopsis: {
+      ES: "En un ecosistema post-humano saturado de organismos bioluminiscentes y mutaciones celulares, dos entidades biológicas desarrollan una relación simbiótica extrema que pone en crisis los límites de la identidad, la parasitosis y la supervivencia orgánica.",
+      EN: "In a post-human ecosystem saturated with bioluminescent organisms and cellular mutations, two biological entities enter into an extreme symbiotic relationship that challenges the boundaries of identity, parasitism, and organic survival.",
+    },
+    screenplay: "Patricio Plaza",
+    direction: "Patricio Plaza",
+    production: "Ojo Raro",
+    genre: {
+      ES: "Ciencia ficción especulativa / Horror biológico",
+      EN: "Speculative Sci-Fi / Body Horror",
+    },
+    technique: {
+      ES: "Animación 2D digital & Concept Art",
+      EN: "2D Digital Animation & Concept Art",
+    },
+    duration: {
+      ES: "En desarrollo",
+      EN: "In Development",
+    },
+    target: {
+      ES: "Adultos (+18)",
+      EN: "Adults (18+)",
+    },
     stills: [
-      pp("CONCEPT 02"),
-      pp("concept 03"),
-      pp("Manos entre parásitos bioluminiscentes"),
+      still("parasitosperfectos_still_01"),
+      still("parasitosperfectos_still_02"),
+      still("parasitosperfectos_still_03"),
     ],
   },
   {
     slug: "luz-diabla",
-    youtube: { id: "kb__9UgYDoI" },
     title: "Luz Diabla",
     year: "2025",
-    preview: "films/luz%20diabla%20(1).webp",
+    status: "completed",
+    preview: still("luzdiabla_stills_01"),
+    vimeo: { url: "https://vimeo.com/783131170" },
     synopsis: {
       ES: "Martín, un joven raver urbano, se ve envuelto en un extraño accidente en la ruta camino a una fiesta en medio de la Pampa argentina. Encontrando refugio en una misteriosa pulpería campestre y cobijado por dos extraños lugareños, la paranoia de Martín comienza a apoderarse de él. Mientras las horas avanzan, su percepción empieza a distorsionarse, desatando visiones inquietantes que lo llevarán a enfrentarse a las fuerzas sobrenaturales que se esconden en la noche.",
       EN: "Martín, a young urban raver, becomes involved in a strange accident on the road while traveling to a party in the heart of the Argentine Pampas. Taking refuge in a mysterious rural general store and sheltered by two enigmatic locals, Martín begins to succumb to paranoia. As the hours pass, his perception starts to distort, unleashing unsettling visions that will force him to confront the supernatural forces lurking in the night.",
     },
-    credits: [
-      { role: role("Idea original y dirección", "Original concept & direction"), people: "Gervasio Canda, Paula Boffo & Patricio Plaza" },
-      { role: role("Guion", "Screenplay"), people: "Paula Boffo" },
-      { role: role("Dirección de arte", "Art direction"), people: "Gervasio Canda" },
-      { role: role("Dirección de animación", "Animation director"), people: "Patricio Plaza, Ana Artaza & Paula Boffo" },
-      { role: role("Animación y postproducción", "Animation & post-production"), people: "Lakeside" },
-      { role: role("Productor ejecutivo", "Executive producer"), people: "Iouri Stepanov" },
-      { role: role("Directora de producción", "Production manager"), people: "Courtney Wolfson" },
-      { role: role("Consultoría de guion", "Script consultant"), people: "Aron Dunn" },
-      { role: role("Producción", "Producer"), people: "Margo Dubar" },
-      { role: role("Supervisión de animación", "Animation supervisor"), people: "Marina Patrakeeva" },
+    screenplay: "Paula Boffo",
+    direction: "Gervasio Canda, Paula Boffo & Patricio Plaza",
+    production: "Ojo Raro, Lakeside Animation (Canadá)",
+    genre: {
+      ES: "Terror psicológico / Fantasía oscura",
+      EN: "Psychological Horror / Dark Fantasy",
+    },
+    technique: {
+      ES: "Cortometraje / Animación 2D digital",
+      EN: "Short Film / 2D Digital Animation",
+    },
+    duration: {
+      ES: "12 min",
+      EN: "12 min",
+    },
+    target: {
+      ES: "Adultos (+16)",
+      EN: "Adults (16+)",
+    },
+    laurelsFolder: "CarnedeDios_laureles",
+    laurels: [
+      "CHILEMONOS-Corto-latinoamericano-1er-lugar (1)",
+      "Laureles-2-Mardel",
+      "macaron_annecy_palme_2023",
     ],
-    duration: "12 min",
-    coProduction: ["Lakeside Animation (Canadá)"],
-    vimeo: "https://vimeo.com/ojoraro",
-    // Luz Diabla no tiene laureles en ojoraro.com.ar
     stills: [
       still("luzdiabla_stills_01"),
       still("luzdiabla_stills_02"),
@@ -219,27 +306,37 @@ const films: Film[] = [
   },
   {
     slug: "carne-de-dios",
-    youtube: { id: "iL4uIMb0gN4", start: 91 },
     title: "Carne de Dios",
     year: "2023",
-    preview: "films/carne_de_dios.webp",
+    status: "completed",
+    preview: still("carne de dios_stills_01"),
+    vimeo: { url: "https://vimeo.com/783131170" },
     synopsis: {
       ES: "En el México de la etapa colonial, un fraile español víctima de una extraña enfermedad deberá soportar en su propio cuerpo los rituales nativos que ha estado persiguiendo.",
       EN: "In colonial Mexico, a Spanish friar afflicted by a strange illness must endure in his own flesh the native rituals he has been relentlessly pursuing.",
     },
-    credits: [
-      { role: role("Dirección, guion y montaje", "Direction, screenplay and editing"), people: "Patricio Plaza" },
-      { role: role("Dirección de arte", "Art direction"), people: "Gervasio Canda" },
-      { role: role("Producción", "Producer"), people: "Patricio Plaza, Rosario Carlino, Lucia Cavalchini & Gustavo Alonso" },
-      { role: role("Dirección de animación", "Animation director"), people: "Patricio Plaza & Diego Polieri" },
-      { role: role("Dirección de sonido", "Sound direction"), people: "Agustin Genoud" },
-      { role: role("Arte en fondos", "Background art"), people: "Sike Facundo Cobbe" },
-    ],
-    duration: "21 min",
-    vimeo: "https://vimeo.com/ojoraro",
+    screenplay: "Patricio Plaza",
+    direction: "Patricio Plaza",
+    production: "Ojo Raro, Maurizius Cine, OSA Estudio",
+    genre: {
+      ES: "Horror folclórico / Drama histórico",
+      EN: "Folk Horror / Historical Drama",
+    },
+    technique: {
+      ES: "Cortometraje / Animación 2D digital cuadro a cuadro",
+      EN: "Short Film / 2D Digital Frame-by-Frame Animation",
+    },
+    duration: {
+      ES: "21 min",
+      EN: "21 min",
+    },
+    target: {
+      ES: "Adultos (+16)",
+      EN: "Adults (16+)",
+    },
     laurelsFolder: "CarnedeDios_laureles",
     laurels: [
-      "CHILEMONOS-Corto-latinoamericano-1er-lugar (1)", // el archivo del zip termina en " (1)"
+      "CHILEMONOS-Corto-latinoamericano-1er-lugar (1)",
       "Laureles-2-Mardel",
       "Laureles-Carne-de-Dios_0000_TOHORROR",
       "Laureles-Carne-de-Dios_0001_TAF",
@@ -266,25 +363,35 @@ const films: Film[] = [
   },
   {
     slug: "santa-sombra",
-    youtube: { id: "4J025vJMGEg" },
     title: "Santa Sombra",
     year: "2023",
-    preview: "films/SANTA%20SOMBRA%20(1).webp",
+    status: "development",
+    preview: still("santasombra_stills_01"),
+    vimeo: { url: "https://vimeo.com/783131170" },
     synopsis: {
-      ES: "Juana es una chica de 15 años que vive en el Altiplano, cuya hermana mayor Marisol es capturada por una red de trata. Juana hace un pacto con “Las Degolladas”, dos espíritus malditos que toman la forma de dos machetes. El poder de los machetes transformarán a Juana en “Santa Sombra”, una antiheroína sedienta de venganza que busca rescatar a su hermana y exterminar a los abusadores de la región.",
+      ES: "Juana es una chica de 15 años que vive en el Altiplano, cuya hermana mayor Marisol es capturada por una red de trata. Juana hace un pacto con “Las Degolladas”, dos espíritus malditos que toman la forma de dos machetes. El poder de los machetes transformará a Juana en “Santa Sombra”, una antiheroína sedienta de venganza que busca rescatar a su hermana y exterminar a los abusadores de la región.",
       EN: "Juana is a 15-year-old girl living in the Altiplano whose older sister, Marisol, is captured by a human trafficking network. Juana makes a pact with “Las Degolladas,” two cursed spirits that take the form of a pair of machetes. Empowered by the blades, Juana transforms into “Santa Sombra,” a vengeance-driven antiheroine determined to rescue her sister and eradicate the abusers who prey on the region.",
     },
-    credits: [
-      { role: role("Idea original", "Original concept"), people: "Paula Boffo" },
-      { role: role("Dirección", "Direction"), people: "Paula Boffo & Patricio Plaza" },
-      { role: role("Guion y montaje", "Screenplay and editing"), people: "Paula Boffo & Patricio Plaza" },
-      { role: role("Producción", "Producer"), people: "Patricio Plaza & Esteban Vijnovich" },
-      { role: role("Dirección de animación", "Animation director"), people: "Patricio Plaza" },
-      { role: role("Música", "Music"), people: "Paula Boffo & Luciano Vitale" },
-      { role: role("Dirección de sonido", "Sound direction"), people: "Rocio Morgenstern & Julian Cohen Rua" },
-    ],
-    vimeo: "https://vimeo.com/ojoraro",
-    laurelsFolder: "santasombra_laureles",
+    screenplay: "Paula Boffo & Patricio Plaza",
+    direction: "Paula Boffo & Patricio Plaza",
+    production: "Ojo Raro",
+    genre: {
+      ES: "Western animado / Thriller sobrenatural",
+      EN: "Animated Western / Supernatural Thriller",
+    },
+    technique: {
+      ES: "Serie de animación / Animación 2D",
+      EN: "Animated Series / 2D Animation",
+    },
+    duration: {
+      ES: "Serie (Episodios de 22 min)",
+      EN: "Series (22 min episodes)",
+    },
+    target: {
+      ES: "Jóvenes Adultos / Adultos (+16)",
+      EN: "Young Adults / Adults (16+)",
+    },
+        laurelsFolder: "santasombra_laureles",
     laurels: [
       "LAURELES-SANTA-SOMBRA_0000_FANTASIA",
       "LAURELES-SANTA-SOMBRA_0001_WEIRD",
@@ -298,6 +405,12 @@ const films: Film[] = [
       "LAURELES-SANTA-SOMBRA_0009_WINDOWS-XP",
       "LAURELES-SANTA-SOMBRA_0010_BITBANG",
     ],
+    markets: [
+      { name: "Mifa Pitches / MIFA", tag: "Festival International du Film d'Animation d'Annecy" },
+      { name: "Animation! Ventana Sur", tag: "Pitching Sessions / Mercado Latinoamericano" },
+      { name: "Weird Market", tag: "Mercado Internacional de Animación" },
+      { name: "INCAA", tag: "Desarrollo de Series de Animación" },
+    ],
     stills: [
       still("santasombra_stills_01"),
       still("santasombra_stills_02"),
@@ -309,28 +422,32 @@ const films: Film[] = [
     youtube: { id: "-0B-fB42zCI", start: 8 },
     title: "Padre",
     year: "2013",
-    preview: "films/padre%20(1).webp",
+    status: "completed",
+    preview: still("padre_stills_01"),
+    vimeo: { url: "https://vimeo.com/ojoraro" },
     synopsis: {
-      ES: "Día a día, la hija de un anciano comandante militar cuida de su padre postrado en cama. La dictadura ha llegado a su fin en Argentina, pero no en la vida de esta mujer.",
-      EN: "Day after day, the daughter of an elderly military commander cares for her bedridden father. The dictatorship has come to an end in Argentina, but not in this woman’s life.",
+      ES: "Día a día, la hija de un oficial militar retirado cuida a su padre postrado en cama, manteniendo una rutina rígida y absorbente. La dictadura ha terminado en la Argentina, pero no en la vida de esta mujer.",
+      EN: "Day after day, the daughter of a retired military officer cares for her bedridden father, adhering to a strict, consuming routine. The dictatorship has ended in Argentina, but not in this woman’s life.",
     },
-    credits: [
-      { role: role("Guion", "Screenplay"), people: "Patricio Plaza & Santiago ‘Bou’ Grasso" },
-      { role: role("Dirección", "Direction"), people: "Patricio Plaza & Santiago ‘Bou’ Grasso" },
-      { role: role("Producción", "Producer"), people: "Santiago ‘Bou’ Grasso, Dora Benousilio & Patricio Plaza" },
-      { role: role("Compañías productoras", "Production companies"), people: "OpusBou, Les Films de L’Arlequin & Ojo Raro" },
-      { role: role("Preproducción", "Pre-production"), people: "Santiago ‘Bou’ Grasso, Silvina Cornillón, Patricio Plaza & Natalia Acosta" },
-      { role: role("Cinematografía", "Cinematography"), people: "Sergio Piñeyro" },
-      { role: role("Animación", "Animation"), people: "Santiago ‘Bou’ Grasso" },
-      { role: role("Música", "Music"), people: "Lucas Nikotian & Santiago ‘Bou’ Grasso" },
-      { role: role("Edición", "Editing"), people: "Patricio Plaza & Santiago ‘Bou’ Grasso" },
-      { role: role("Postproducción", "Post-production"), people: "Diego Gambarotta, Santiago ‘Bou’ Grasso & Patricio Plaza" },
-      { role: role("Vestuario", "Costume design"), people: "Natalia Acosta" },
-      { role: role("Atrezzo", "Props"), people: "Santiago ‘Bou’ Grasso, Ariel Bernachea & Cristian Davies" },
-      { role: role("Construcción de escenografía", "Set construction"), people: "Florentino Grasso & Santiago ‘Bou’ Grasso" },
-      { role: role("CGI", "CGI"), people: "Trexel & Barraca Post" },
-    ],
-    vimeo: "https://vimeo.com/ojoraro",
+    screenplay: "Patricio Plaza & Santiago ‘Bou’ Grasso",
+    direction: "Santiago ‘Bou’ Grasso & Patricio Plaza",
+    production: "OpusBou, Les Films de L’Arlequin & Ojo Raro",
+    genre: {
+      ES: "Drama histórico / Político",
+      EN: "Historical Drama / Political",
+    },
+    technique: {
+      ES: "Cortometraje / Stop Motion & Animación 2D",
+      EN: "Short Film / Stop Motion & 2D Animation",
+    },
+    duration: {
+      ES: "12 min",
+      EN: "12 min",
+    },
+    target: {
+      ES: "Adultos / Jóvenes Adultos (+13)",
+      EN: "Adults / Young Adults (13+)",
+    },
     laurelsFolder: "padre_laureles",
     laurels: [
       "LAURELES-PADRE_0000_ANIMA-MUNDI",
@@ -357,24 +474,32 @@ const films: Film[] = [
     youtube: { id: "5KyifKNlY7A", start: 22 },
     title: "El Empleo",
     year: "2008",
-    preview: "films/el%20empleo%20(1).webp",
+    status: "completed",
+    preview: still("elempleo_stills_01"),
+    vimeo: { url: "https://vimeo.com/ojoraro" },
     synopsis: {
       ES: "Un hombre realiza su rutinario viaje al trabajo, inmerso en un mundo donde el uso de las personas es algo cotidiano.",
       EN: "A man goes through his routine commute to work, immersed in a world where using people is an everyday occurrence.",
     },
-    credits: [
-      { role: role("Dirección", "Direction"), people: "Patricio Plaza & Santiago ‘Bou’ Grasso" },
-      { role: role("Concepto y diseño de personajes", "Character concept & design"), people: "Patricio Plaza" },
-      { role: role("Animación 2D", "2D animation"), people: "Patricio Plaza & Santiago ‘Bou’ Grasso" },
-      { role: role("CGI", "CGI"), people: "Lautaro González González" },
-      { role: role("Diseño de fondos", "Background design"), people: "Santiago ‘Bou’ Grasso" },
-      { role: role("Storyboard", "Storyboard"), people: "Patricio Plaza" },
-      { role: role("Sonido", "Sound"), people: "Patricio Plaza" },
-      { role: role("Composición y efectos", "Compositing & effects"), people: "Santiago ‘Bou’ Grasso" },
-      { role: role("Diseño de títulos", "Title design"), people: "Natalia Acosta" },
-      { role: role("Colaboradores", "Contributors"), people: "Leonardo Bettinelli, Mariana Díaz, Federico Gimeno & Matías Américo" },
-    ],
-    vimeo: "https://vimeo.com/ojoraro",
+    screenplay: "Patricio Plaza",
+    direction: "Patricio Plaza & Santiago ‘Bou’ Grasso",
+    production: "OpusBou",
+    genre: {
+      ES: "Sátira social / Distopía",
+      EN: "Social Satire / Dystopian Drama",
+    },
+    technique: {
+      ES: "Cortometraje / Animación 2D tradicional",
+      EN: "Short Film / Traditional 2D Animation",
+    },
+    duration: {
+      ES: "7 min",
+      EN: "7 min",
+    },
+    target: {
+      ES: "Todo público / Adultos",
+      EN: "General Audience / Adults",
+    },
     laurelsFolder: "elempleo_laureles",
     laurels: [
       "EL-EMPLEO_0000_ANNECY",
@@ -413,308 +538,278 @@ const films: Film[] = [
     ],
   },
 ]
- 
+
 const navigableFilms = films
- 
-/* Contacto: completar con el endpoint de Formspree (https://formspree.io/f/xxxxxxx).
-   Mientras esté vacío, el formulario abre el cliente de correo (mailto:). */
-const FORM_ENDPOINT = ""
-const CONTACT_EMAIL = "patricio@ojoraro.com.ar"
- 
+
 const copy = {
   ES: {
     home: "Inicio",
     bio: "Bio",
     films: "Films",
     contact: "Contacto",
-    skip: "Saltar al contenido",
     mainNav: "Navegación principal",
-    close: "Cerrar",
-    role: "Animation Producer, writer and filmmaker",
+    language: "Idioma",
+    role: "Productor de animación, director y guionista",
     statement:
       "Animación política con géneros populares: el horror y la fantasía para abordar luchas históricas y políticas de América Latina.",
     biography:
-      "Patricio Plaza es cineasta radicado en Buenos Aires. Estudió artes visuales y comunicación audiovisual en la Universidad Nacional de La Plata y realiza películas de animación desde hace más de 20 años. En 2019 fundó Ojo Raro, un espacio de producción con visión crítica sobre el medio, orientado a la animación de géneros populares desde una perspectiva sudamericana y queer.",
-    viewFilms: "Ver films",
+      "Realizador y productor de cine de animación radicado en Buenos Aires, Argentina. Su obra combina el terror folclórico y la fantasía oscura para reflexionar sobre luchas sociales, identitarias y de derechos humanos en América Latina.",
+    viewFilms: "Ver film",
+    viewFilm: "Ver film",
     viewMore: "Ver más",
     back: "Films",
     synopsis: "Sinopsis",
-    details: "Ficha",
-    direction: "Dirección",
-    screenplay: "Guion",
-    coscreenplay: "Coguion",
-    duration: "Duración",
-    feature: "Largometraje",
+    details: "Ficha Técnica",
+    fieldTitle: "Título",
+    fieldScreenplay: "Guion",
+    fieldDirection: "Dirección",
+    fieldProduction: "Producción / Casas Productoras",
+    fieldGenre: "Género",
+    fieldTechnique: "Formato / Técnica",
+    fieldDuration: "Duración",
+    fieldTarget: "Audiencia / Target",
+    fieldStatus: "Estado del proyecto",
+    statusCompleted: "Finalizado",
+    statusDevelopment: "En desarrollo",
+    development: "En desarrollo",
     coProduction: "Coproducción",
-    online: "Online",
+    online: "En línea",
     watchVimeo: "Ver en Vimeo",
-    galleryTitle: "Galería",
-    laurels: "Laureles",
+    watchTrailer: "Ver trailer en Vimeo",
+    galleryTitle: "Fotogramas",
+    awardsTitle: "Premios y Selecciones",
+    marketsTitle: "Fondos, Residencias y Mercados",
     enlarge: "Ampliar imagen",
     stillOf: "Still",
+    filmsNav: "Navegación entre films",
+    newer: "Más recientes",
+    older: "Anteriores",
     previous: "Anterior",
     next: "Siguiente",
-    newer: "Más reciente",
-    older: "Más antigua",
-    filmsNav: "Films",
-    development: "En desarrollo",
-    toggleTheme: "Cambiar tema",
-    language: "Idioma",
-    viewFilm: "Ver film",
-    slideshow: "Films destacados",
-    gallery: "Galería de",
-    prevSlide: "Imagen anterior",
-    nextSlide: "Imagen siguiente",
-    goToSlide: "Ir a la imagen",
-    pauseSlides: "Pausar carrusel",
-    playSlides: "Reanudar carrusel",
-    notFoundTitle: "Página no encontrada",
-    notFoundText: "La dirección que buscás no existe o fue movida.",
-    notFoundLink: "Ir a Films",
+    close: "Cerrar",
+    slideshow: "Fotogramas destacados",
+    prevSlide: "Fotograma anterior",
+    nextSlide: "Fotograma siguiente",
+    pauseSlides: "Pausar pase de fotogramas",
+    playSlides: "Reanudar pase de fotogramas",
+    goToSlide: "Ir al fotograma",
     bioPhotoAlt: "Retrato de Patricio Plaza",
     video: "Video",
-    laurelsHint: "Pasá el mouse y usá la rueda para ver todos",
+    laurelsHint: "Desliza para ver todos los reconocimientos",
     laurelsPrev: "Ver laureles anteriores",
     laurelsNext: "Ver más laureles",
-    bioStats: [
-      ["+20", "años en animación"],
-      ["6", "cortometrajes"],
-      ["+500", "festivales"],
-      ["+240", "premios internacionales"],
+    // 4 Bloques Semánticos de Bio
+    bioThemes: [
+      {
+        title: "Formación",
+        content:
+          "Estudió Artes Visuales y Comunicación Audiovisual en la Universidad Nacional de La Plata. Cuenta con una sólida base académica y artística en cine y animación, complementada con residencias de escritura y desarrollo en instituciones de renombre internacional como NEF Animation, La Maison des Auteurs de Angulema y la Cité internationale des arts de París.",
+      },
+      {
+        title: "Experiencia Profesional",
+        content:
+          "Trabaja en la industria de la animación desde hace más de dos décadas como director, guionista y productor. En 2019 fundó Ojo Raro, colectivo de producción dedicado a la creación de proyectos autorales desde una perspectiva sudamericana, transfeminista y queer, articulando coproducciones internacionales y colaboraciones con estudios de América Latina, Europa y Norteamérica.",
+      },
+      {
+        title: "Obra",
+        content:
+          "Su filmografía se centra en la animación política de autor, valiéndose de géneros como el horror folclórico y la fantasía para explorar las tensiones históricas y sociales latinoamericanas. Ha escrito y dirigido obras clave como El Empleo (2008), Padre (2013), Carne de Dios (2023) y Luz Diabla (2025), además de liderar el desarrollo de proyectos de largometraje y series como Diarios Negros, Santa Sombra y Parásitos Perfectos. Sus producciones han competido en festivales de primer orden mundial como Annecy, Sundance, Guadalajara, Mar del Plata y los Premios Annie.",
+      },
+      {
+        title: "Divulgación",
+        content:
+          "Comprometido con la formación y la defensa de los derechos humanos y la diversidad, Patricio colabora activamente con organizaciones sociales y lidera iniciativas como Voces del Sur y Miradas Furtivas. Curó el programa Hidden Desires en el Festival de Annecy y ha dictado su masterclass 'Horror político en la animación latinoamericana' en universidades y festivales de Argentina, México y Colombia, con el apoyo de organismos como el INCAA, FONCA y el Institut français.",
+      },
     ],
-    bioParagraphs: [
-      "Patricio Plaza es un cineasta de animación radicado en Buenos Aires, Argentina. Estudió Artes Visuales y Comunicación Audiovisual en la Universidad Nacional de La Plata y trabaja en animación desde hace más de veinte años. Su obra se centra en la animación política y recurre a géneros como el horror y la fantasía para explorar las luchas históricas y políticas de América Latina. Plaza escribió y coescribió seis cortometrajes, seleccionados en más de 500 festivales y distinguidos con más de 240 premios internacionales.",
-      "Comenzó su carrera cinematográfica como coautor de dos cortometrajes, El Empleo (2008) y Padre (2013), que juntos obtuvieron alrededor de 180 premios y fueron seleccionados en Annecy.",
-      "En 2019 fundó Ojo Raro, un colectivo de producción dedicado a crear animación desde una perspectiva sudamericana y queer. El primer cortometraje del colectivo, Carne de Dios (dirigido por Patricio), fue seleccionado en la Competencia Oficial del Festival Internacional de Cine de Animación de Annecy. Entre sus premios se cuentan Mejor Cortometraje Argentino en el Festival Internacional de Cine de Mar del Plata (festival de categoría A), el Premio Rigo Mora en el Festival Internacional de Cine de Guadalajara, Mejor Cortometraje Latinoamericano en Pixelatl y en Chilemonos, y Mejor Animación en el Festival Internacional del Nuevo Cine Latinoamericano de La Habana.",
-      "La película también fue nominada a Mejor Cortometraje en los Premios Annie 2024. En 2025, su cortometraje Luz Diabla fue seleccionado en la Competencia Oficial del Festival de Sundance. En Annecy 2026, Carne de Dios y Luz Diabla formaron parte del Programa Especial Animation Chills and Thrills de Annecy.",
-      "Patricio ha colaborado con organismos de derechos humanos como Madres y Abuelas de Plaza de Mayo y apoya activamente a creadores de animación LGBTIQ+ y de minorías racializadas en América Latina, liderando iniciativas como Voces del Sur y Miradas Furtivas: Mujeres y Disidencias de la Animación Argentina. Curó el programa de animación LGBTIQ Hidden Desires en el Festival de Annecy 2023 y dictó su masterclass Horror político en la animación latinoamericana en México, Colombia y Argentina. Recibió apoyo del INCAA y del Fondo Nacional de las Artes de Argentina, del FONCA y la Secretaría de Relaciones Exteriores de México, y del Institut français en Argentina.",
-      "En 2026 realizará residencias de escritura en Francia —en NEF Animation, La Maison des Auteurs de Angulema y la Cité internationale des arts de París— para escribir el guion de Diarios Negros, su primer largometraje.",
-    ],
-    contactIntro: "Proyectos, proyecciones, prensa y colaboraciones.",
+    // Vías de contacto
+    personalContactBadge: "Personal / Directo",
+    personalContactTitle: "Patricio Plaza",
+    personalContactDesc: "Consultas artísticas, dirección, guion y colaboraciones personales.",
+    institutionalContactBadge: "Institucional / Productora",
+    institutionalContactTitle: "Ojo Raro",
+    institutionalContactDesc: "Coproducciones, proyectos audiovisuales, festivales y prensa.",
     fieldName: "Nombre",
     fieldEmail: "Email",
-    fieldReason: "Motivo",
     fieldMessage: "Mensaje",
     fieldWebsite: "Sitio web",
-    reasons: ["Proyecto", "Proyección o festival", "Prensa", "Otro"],
     errName: "Ingresá tu nombre.",
     errEmail: "Ingresá un email válido.",
     errMessage: "Escribí un mensaje.",
+    sendMessage: "Enviar un mensaje",
     send: "Enviar mensaje",
     sending: "Enviando…",
-    sent: "Mensaje enviado. Gracias.",
-    sentMailto: "Se abrió tu aplicación de correo con el mensaje listo para enviar. Gracias.",
+    sent: "Mensaje enviado. Muchas gracias.",
+    sentMailto: "Se abrió tu aplicación de correo para enviar el mensaje. Muchas gracias.",
+    sendError: "Hubo un error al enviar. Podés escribir directamente a info@patricioplaza.com.ar",
     sendAnother: "Enviar otro mensaje",
-    sendError: `No pudimos enviar tu mensaje. Probá de nuevo o escribí a ${CONTACT_EMAIL}.`,
-    mailSubject: "Contacto desde el portfolio",
+    skip: "Saltar al contenido principal",
+    mailSubject: "Contacto desde sitio web",
+    notFoundTitle: "Página no encontrada",
+    notFoundText: "La página que buscás no existe o cambió de lugar.",
+    notFoundLink: "Ir al listado de films",
   },
   EN: {
     home: "Home",
     bio: "Bio",
     films: "Films",
     contact: "Contact",
-    skip: "Skip to content",
     mainNav: "Main navigation",
-    close: "Close",
-    role: "Animation Producer, writer and filmmaker",
+    language: "Language",
+    role: "Animation Producer, Director & Screenwriter",
     statement:
       "Political animation through popular genres: horror and fantasy as a way to address Latin America's historical and political struggles.",
     biography:
-      "Patricio Plaza is a filmmaker based in Buenos Aires. He studied visual arts and audiovisual communication at the National University of La Plata and has made animated films for over 20 years. In 2019 he founded Ojo Raro, a production space with a critical perspective on the medium, focused on popular genre animation from a South American and queer point of view.",
+      "Patricio Plaza is an animation filmmaker and producer based in Buenos Aires, Argentina. His work blends folk horror and dark fantasy to critically examine historical and social struggles across Latin America.",
     viewFilms: "View films",
+    viewFilm: "View film",
     viewMore: "View more",
     back: "Films",
     synopsis: "Synopsis",
-    details: "Credits",
-    direction: "Direction",
-    screenplay: "Screenplay",
-    coscreenplay: "Co-screenplay",
-    duration: "Running time",
-    feature: "Feature film",
+    details: "Technical Specifications",
+    fieldTitle: "Title",
+    fieldScreenplay: "Screenplay",
+    fieldDirection: "Direction",
+    fieldProduction: "Production / Production Companies",
+    fieldGenre: "Genre",
+    fieldTechnique: "Format / Technique",
+    fieldDuration: "Running Time",
+    fieldTarget: "Target Audience",
+    fieldStatus: "Project Status",
+    statusCompleted: "Completed",
+    statusDevelopment: "In Development",
+    development: "In development",
     coProduction: "Co-production",
     online: "Online",
     watchVimeo: "Watch on Vimeo",
-    galleryTitle: "Gallery",
-    laurels: "Awards",
+    watchTrailer: "Watch trailer on Vimeo",
+    galleryTitle: "Stills",
+    awardsTitle: "Awards & Official Selections",
+    marketsTitle: "Funds, Residencies & Industry Markets",
     enlarge: "Enlarge image",
     stillOf: "Still",
+    filmsNav: "Films navigation",
+    newer: "Newer",
+    older: "Older",
     previous: "Previous",
     next: "Next",
-    newer: "More recent",
-    older: "Older",
-    filmsNav: "Films",
-    development: "In development",
-    toggleTheme: "Toggle theme",
-    language: "Language",
-    viewFilm: "View film",
-    slideshow: "Featured films",
-    gallery: "Gallery of",
-    prevSlide: "Previous image",
-    nextSlide: "Next image",
-    goToSlide: "Go to image",
-    pauseSlides: "Pause carousel",
-    playSlides: "Resume carousel",
-    notFoundTitle: "Page not found",
-    notFoundText: "The address you're looking for doesn't exist or has moved.",
-    notFoundLink: "Go to Films",
+    close: "Close",
+    slideshow: "Featured stills",
+    prevSlide: "Previous slide",
+    nextSlide: "Next slide",
+    pauseSlides: "Pause slideshow",
+    playSlides: "Play slideshow",
+    goToSlide: "Go to slide",
     bioPhotoAlt: "Portrait of Patricio Plaza",
     video: "Video",
-    laurelsHint: "Hover and use the mouse wheel to see them all",
+    laurelsHint: "Scroll to view all awards",
     laurelsPrev: "Show previous awards",
     laurelsNext: "Show more awards",
-    bioStats: [
-      ["+20", "years in animation"],
-      ["6", "short films"],
-      ["+500", "festivals"],
-      ["+240", "international awards"],
+    bioThemes: [
+      {
+        title: "Education & Background",
+        content:
+          "He studied Visual Arts and Audiovisual Communication at the Universidad Nacional de La Plata. His academic and artistic background is reinforced by prestigious international writing and development residencies at NEF Animation, La Maison des Auteurs in Angoulême, and the Cité internationale des arts in Paris.",
+      },
+      {
+        title: "Professional Experience",
+        content:
+          "With over twenty years of experience as an animation director, writer, and producer, Plaza founded Ojo Raro in 2019—a production collective dedicated to crafting auteur animation from a South American and queer perspective, fostering international co-productions across Latin America, North America, and Europe.",
+      },
+      {
+        title: "Body of Work",
+        content:
+          "His filmography focuses on political animation, blending folk horror and dark fantasy to dissect Latin America's historical and socio-political tensions. Key titles include El Empleo (2008), Padre (2013), Carne de Dios (2023), and Luz Diabla (2025), alongside upcoming projects such as Black Diaries, Santa Sombra, and Parásitos Perfectos. His films have screened in official competitions at major international festivals including Annecy, Sundance, Guadalajara, Mar del Plata, and the Annie Awards.",
+      },
+      {
+        title: "Outreach & Masterclasses",
+        content:
+          "Actively engaged in mentoring, human rights advocacy, and supporting underrepresented and LGBTIQ+ animation creators across Latin America, he leads initiatives like Voces del Sur and Miradas Furtivas. He curated the Hidden Desires programme at the Annecy International Animation Festival and has taught his masterclass 'Political Horror in Latin American Animation' throughout Argentina, Mexico, and Colombia with support from INCAA, FONCA, and the Institut français.",
+      },
     ],
-    bioParagraphs: [
-      "Patricio Plaza is an animation filmmaker based in Buenos Aires, Argentina. He studied Visual Arts and Audiovisual Communication at the Universidad Nacional de La Plata and has worked in animation for over twenty years. His work focuses on political animation, drawing on genres such as horror and fantasy to explore Latin America’s historical and political struggles. Plaza has written and co-written six short films, which have been selected for over 500 festivals and received more than 240 international awards.",
-      "He began his filmmaking career by co-authoring two short films, El Empleo (2008) and Padre (2013), which together won around 180 awards and were both selected for Annecy.",
-      "In 2019, he founded Ojo Raro, a production collective dedicated to creating animation from a South American and queer perspective. The collective’s first short film, Carne de Dios (directed by Patricio), was selected for the Official Competition at the Annecy International Animation Film Festival. Its awards include Best Argentine Short Film at the Mar del Plata International Film Festival (an A-list festival), the Rigo Mora Award at the Guadalajara International Film Festival, Best Latin American Short Film at both Pixelatl and Chilemonos, and Best Animation at the Havana International Festival of New Latin American Cinema.",
-      "The film was also nominated for Best Short Subject at the 2024 Annie Awards. In 2025, his short film Luz Diabla was selected for the Official Competition at the Sundance Film Festival. In Annecy 2026, Carne de Dios and Luz Diabla were part of the Annecy’s Special Program Animation Chills and Thrills.",
-      "Patricio has collaborated with human rights organisations such as the Mothers and Grandmothers of Plaza de Mayo and actively supports LGBTIQ+ animation creators and racialised minorities in Latin America, leading initiatives such as Voces del Sur and Miradas Furtivas: Mujeres y Disidencias de la Animación Argentina. He curated the LGBTIQ animation programme Hidden Desires at the 2023 Annecy Festival and has delivered his masterclass Political Horror in Latin American Animation in Mexico, Colombia and Argentina. He has received support from Argentina’s INCAA and National Arts Fund, Mexico’s FONCA and Secretariat of Foreign Affairs, and the Institut français in Argentina.",
-      "In 2026, he will undertake writing residencies in France at NEF Animation, La Maison des Auteurs in Angoulême, and the Cité internationale des arts in Paris to write the script of Black Diaries, his first feature film project.",
-    ],
-    contactIntro: "Projects, screenings, press and collaborations.",
+    personalContactBadge: "Personal / Direct",
+    personalContactTitle: "Patricio Plaza",
+    personalContactDesc: "Artistic inquiries, direction, screenwriting, and personal collaborations.",
+    institutionalContactBadge: "Studio / Production",
+    institutionalContactTitle: "Ojo Raro",
+    institutionalContactDesc: "Co-productions, film projects, festival distribution, and press.",
     fieldName: "Name",
     fieldEmail: "Email",
-    fieldReason: "Reason",
     fieldMessage: "Message",
     fieldWebsite: "Website",
-    reasons: ["Project", "Screening or festival", "Press", "Other"],
     errName: "Enter your name.",
     errEmail: "Enter a valid email.",
     errMessage: "Write a message.",
+    sendMessage: "Send a message",
     send: "Send message",
     sending: "Sending…",
     sent: "Message sent. Thank you.",
     sentMailto: "Your email app should have opened with your message ready to send. Thank you.",
+    sendError: "An error occurred. You can write directly to info@patricioplaza.com.ar",
     sendAnother: "Send another message",
-    sendError: `We couldn't send your message. Please try again or write to ${CONTACT_EMAIL}.`,
-    mailSubject: "Message from the portfolio",
+    skip: "Skip to main content",
+    mailSubject: "Website inquiry",
+    notFoundTitle: "Page not found",
+    notFoundText: "The page you are looking for does not exist.",
+    notFoundLink: "View all films",
   },
 }
- 
-type Copy = (typeof copy)[Language]
- 
-const filmYear = (film: Film, t: Copy) => (film.status === "development" ? t.development : film.year)
- 
-function readStorage(key: string) {
+
+function useRoute(): string {
+  const get = () => {
+    const raw = window.location.hash.replace(/^#\/?/, "");
+    return raw ? raw.replace(/^\/+/, "") : "inicio";
+  }
+  const [route, setRoute] = useState(get)
+
+  useEffect(() => {
+    const handler = () => setRoute(get())
+    window.addEventListener("hashchange", handler)
+    return () => window.removeEventListener("hashchange", handler)
+  }, [])
+
+  return route
+}
+
+function writeStorage(key: string, value: string) {
   try {
-    return localStorage.getItem(key)
+    window.localStorage.setItem(key, value)
+  } catch {
+    /* almacenamiento deshabilitado */
+  }
+}
+
+function readStorage(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key)
   } catch {
     return null
   }
 }
- 
-function writeStorage(key: string, value: string) {
-  try {
-    localStorage.setItem(key, value)
-  } catch {
-    /* modo privado o storage bloqueado */
-  }
+
+function youtubeEmbed(youtube: { id: string; start?: number }) {
+  const start = youtube.start ? `&start=${youtube.start}` : ""
+  return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(youtube.id)}?rel=0&modestbranding=1${start}`
 }
- 
-/* Posición de scroll por ruta, para restaurarla al volver con Atrás */
-const scrollPositions: Record<string, number> = {}
- 
-function useRoute() {
-  const readRoute = () => window.location.hash.replace(/^#\/?/, "") || "inicio"
-  const [route, setRoute] = useState(readRoute)
-  const current = useRef(route)
-  const pendingScroll = useRef(0)
-  const linkNavigation = useRef(false)
- 
-  useEffect(() => {
-    window.history.scrollRestoration = "manual"
- 
-    // Distingue un click en un link interno (arranca arriba) de Atrás/Adelante (restaura)
-    const onClick = (event: MouseEvent) => {
-      const link = (event.target as HTMLElement).closest?.("a")
-      if (link?.getAttribute("href")?.startsWith("#/")) {
-        linkNavigation.current = true
-        window.setTimeout(() => {
-          linkNavigation.current = false
-        }, 500)
-      }
-    }
- 
-    const update = () => {
-      scrollPositions[current.current] = window.scrollY
-      const next = readRoute()
-      pendingScroll.current = linkNavigation.current ? 0 : (scrollPositions[next] ?? 0)
-      linkNavigation.current = false
-      current.current = next
-      setRoute(next)
-    }
- 
-    document.addEventListener("click", onClick, true)
-    window.addEventListener("hashchange", update)
-    return () => {
-      document.removeEventListener("click", onClick, true)
-      window.removeEventListener("hashchange", update)
-    }
-  }, [])
- 
-  // Scroll instantáneo (sin animación) una vez renderizada la nueva vista
-  useLayoutEffect(() => {
-    window.scrollTo({ top: pendingScroll.current, behavior: "instant" as ScrollBehavior })
-  }, [route])
- 
-  return route
-}
- 
-function Reveal({ children, className = "" }: { children: ReactNode; className?: string }) {
-  const ref = useRef<HTMLDivElement>(null)
- 
-  useEffect(() => {
-    const node = ref.current
-    if (!node) return
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          node.classList.add("is-visible")
-          observer.unobserve(node)
-        }
-      },
-      { threshold: 0.12 },
-    )
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [])
- 
-  return (
-    <div className={`reveal ${className}`} ref={ref}>
-      {children}
-    </div>
-  )
-}
- 
+
 function Sidebar({
   route,
   language,
   setLanguage,
-  theme,
-  setTheme,
 }: {
   route: string
   language: Language
   setLanguage: (language: Language) => void
-  theme: Theme
-  setTheme: (theme: Theme) => void
 }) {
   const t = copy[language]
   const sections = ["inicio", "bio", "films", "contacto"]
   const activeSection = route.startsWith("film/") || route === "films" ? "films" : sections.includes(route) ? route : ""
-  const isDark = theme === "dark"
   const navItems: [string, string][] = [
     ["inicio", t.home],
     ["bio", t.bio],
     ["films", t.films],
     ["contacto", t.contact],
   ]
- 
+
   return (
     <header className="sidebar">
       <nav aria-label={t.mainNav} className="section-nav">
@@ -756,80 +851,42 @@ function Sidebar({
             EN
           </button>
         </div>
-        <button
-          aria-checked={isDark}
-          aria-label={t.toggleTheme}
-          className={`theme-toggle ${isDark ? "is-dark" : ""}`}
-          onClick={() => setTheme(isDark ? "light" : "dark")}
-          role="switch"
-          type="button"
-        >
-          <span className="theme-knob">
-            <svg
-              aria-hidden="true"
-              className="icon-sun"
-              fill="none"
-              height="14"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-              width="14"
-            >
-              <circle cx="12" cy="12" r="4" />
-              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
-            </svg>
-            <svg
-              aria-hidden="true"
-              className="icon-moon"
-              fill="currentColor"
-              height="14"
-              viewBox="0 0 24 24"
-              width="14"
-            >
-              <path d="M21 14.5A9 9 0 0 1 9.5 3a9 9 0 1 0 11.5 11.5Z" />
-            </svg>
-          </span>
-        </button>
       </div>
     </header>
   )
 }
- 
-/* Orden fijo: hero_01 → hero_07. Cada imagen lleva a la página de su film.
-   hero_02 (Parásitos Perfectos) usa CONCEPT 01 de public/ParasitosPerfectos/. */
+
 const heroImages: { image: string; slug?: string; title?: string }[] = [
   { image: hero("hero_01"), slug: "diarios-negros", title: "Diarios Negros" },
-  { image: pp("CONCEPT 01"), slug: "parasitos-perfectos", title: "Parásitos Perfectos" },
+  { image: hero("hero_02"), slug: "parasitos-perfectos", title: "Parásitos Perfectos" },
   { image: hero("hero_03"), slug: "luz-diabla", title: "Luz Diabla" },
   { image: hero("hero_04"), slug: "santa-sombra", title: "Santa Sombra" },
   { image: hero("hero_05"), slug: "carne-de-dios", title: "Carne de Dios" },
   { image: hero("hero_06"), slug: "el-empleo", title: "El Empleo" },
   { image: hero("hero_07"), slug: "padre", title: "Padre" },
 ]
- 
+
 function HeroCarousel({ language }: { language: Language }) {
   const t = copy[language]
   const items = heroImages
   const count = items.length
-  const slides = count ? [...items, items[0]] : [] // clon del primero para que el loop sea continuo
   const [index, setIndex] = useState(0)
   const [animate, setAnimate] = useState(true)
   const [hoverPaused, setHoverPaused] = useState(false)
-  const [userPaused, setUserPaused] = useState(
-    () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-  )
-  const paused = hoverPaused || userPaused
+  const [userPaused, setUserPaused] = useState(false)
   const touchStartX = useRef<number | null>(null)
- 
-  // Cada imagen queda quieta ~4 s y luego se corre hacia la izquierda (0,8 s)
+  const slides = count > 0 ? [...items, items[0]] : []
+
+  const isPaused = hoverPaused || userPaused
+
   useEffect(() => {
-    if (paused || count < 2 || index >= count) return
-    const timer = window.setTimeout(() => setIndex((current) => current + 1), 4800)
-    return () => window.clearTimeout(timer)
-  }, [index, paused, count])
- 
-  // Al llegar al clon, saltar sin animación a la primera imagen real
+    if (isPaused || count <= 1) return
+    const timer = window.setInterval(() => {
+      setIndex((current) => current + 1)
+    }, 4500)
+    return () => window.clearInterval(timer)
+  }, [isPaused, count])
+
   useEffect(() => {
     if (index !== count) return
     const timer = window.setTimeout(() => {
@@ -838,15 +895,15 @@ function HeroCarousel({ language }: { language: Language }) {
     }, 800)
     return () => window.clearTimeout(timer)
   }, [index, count])
- 
+
   useEffect(() => {
     if (animate) return
     const frame = requestAnimationFrame(() => requestAnimationFrame(() => setAnimate(true)))
     return () => cancelAnimationFrame(frame)
   }, [animate])
- 
+
   if (!count) return null
- 
+
   const goNext = () => setIndex((current) => (current >= count ? current : current + 1))
   const goPrevious = () => {
     if (index <= 0) {
@@ -856,19 +913,21 @@ function HeroCarousel({ language }: { language: Language }) {
       setIndex((current) => current - 1)
     }
   }
- 
+
   const onTouchStart = (event: ReactTouchEvent) => {
     touchStartX.current = event.touches[0].clientX
   }
- 
+
   const onTouchEnd = (event: ReactTouchEvent) => {
-    if (touchStartX.current === null || count < 2) return
+    if (touchStartX.current === null) return
     const delta = event.changedTouches[0].clientX - touchStartX.current
+    if (Math.abs(delta) > 40) {
+      if (delta < 0) goNext()
+      else goPrevious()
+    }
     touchStartX.current = null
-    if (delta > 50) goPrevious()
-    if (delta < -50) goNext()
   }
- 
+
   return (
     <div
       aria-label={t.slideshow}
@@ -889,7 +948,7 @@ function HeroCarousel({ language }: { language: Language }) {
           const isClone = position === count
           const content = (
             <>
-              <img alt="" src={slide.image} />
+              <FallbackImg alt={slide.title ?? ""} src={slide.image} />
               {slide.title && <span className="hero-label">{slide.title}</span>}
             </>
           )
@@ -911,7 +970,7 @@ function HeroCarousel({ language }: { language: Language }) {
           )
         })}
       </div>
- 
+
       <button
         aria-label={userPaused ? t.playSlides : t.pauseSlides}
         className="hero-control hero-pause"
@@ -928,7 +987,7 @@ function HeroCarousel({ language }: { language: Language }) {
           </svg>
         )}
       </button>
- 
+
       {count > 1 && (
         <>
           <button
@@ -937,7 +996,7 @@ function HeroCarousel({ language }: { language: Language }) {
             onClick={goPrevious}
             type="button"
           >
-            <Triangle dir="left" size={14} />
+            <Triangle dir="left" size={16} />
           </button>
           <button
             aria-label={t.nextSlide}
@@ -945,29 +1004,39 @@ function HeroCarousel({ language }: { language: Language }) {
             onClick={goNext}
             type="button"
           >
-            <Triangle size={14} />
+            <Triangle size={16} />
           </button>
         </>
       )}
- 
-      <div className="hero-dots">
-        {items.map((_, position) => (
-          <button
-            aria-current={position === index % count ? "true" : undefined}
-            aria-label={`${t.goToSlide} ${position + 1}`}
-            className={position === index % count ? "is-active" : ""}
-            key={position}
-            onClick={() => setIndex(position)}
-            type="button"
-          >
-            <span />
-          </button>
-        ))}
+
+      <div className="hero-bottom-right">
+        <div className="hero-dots">
+          {items.map((_, position) => (
+            <button
+              aria-current={position === index % count ? "true" : undefined}
+              aria-label={`${t.goToSlide} ${position + 1}`}
+              className={position === index % count ? "is-active" : ""}
+              key={position}
+              onClick={() => setIndex(position)}
+              type="button"
+            >
+              <span />
+            </button>
+          ))}
+        </div>
+
+        <a
+          className="hero-action-link"
+          href={items[index % count]?.slug ? `#/film/${items[index % count].slug}` : "#/films"}
+        >
+          {t.viewFilm}
+          <Triangle size={9} />
+        </a>
       </div>
     </div>
   )
 }
- 
+
 function HomePage({ language }: { language: Language }) {
   const t = copy[language]
   return (
@@ -976,13 +1045,7 @@ function HomePage({ language }: { language: Language }) {
       <div className="home-content">
         <Reveal className="profile-head">
           <h1>Patricio Plaza</h1>
-          <div className="profile-meta">
-            <p className="profile-role">{t.role}</p>
-            <a className="text-link home-link" href="#/films">
-              {t.viewFilms}
-              <Triangle />
-            </a>
-          </div>
+          <p className="profile-role">{t.role}</p>
         </Reveal>
         <Reveal className="profile-grid">
           <p className="statement">{t.statement}</p>
@@ -994,42 +1057,33 @@ function HomePage({ language }: { language: Language }) {
     </section>
   )
 }
- 
+
 function BioPage({ language }: { language: Language }) {
   const t = copy[language]
   return (
     <section className="bio-page page">
       <header className="page-intro">
         <h1>{t.bio}</h1>
-        <p>Patricio Plaza</p>
       </header>
       <div className="bio-layout">
         <Reveal className="bio-photo">
-          <div className="bio-photo-frame">
-            <img alt={t.bioPhotoAlt} src="films/recurso-1.png" />
+          <div className="bio-photo-container">
+            <div className="bio-photo-frame">
+              <FallbackImg alt={t.bioPhotoAlt} src="bio/recurso-1.png" />
+            </div>
           </div>
+          <h2 className="bio-photo-name">Patricio Plaza</h2>
         </Reveal>
         <div className="bio-main">
           <Reveal>
             <p className="bio-lead">{t.statement}</p>
           </Reveal>
-          <Reveal>
-            <dl className="bio-stats">
-              {t.bioStats.map(([value, label]) => (
-                <div key={label}>
-                  <dt>{value}</dt>
-                  <dd>{label}</dd>
-                </div>
-              ))}
-            </dl>
-          </Reveal>
-          <div className="bio-blocks">
-            {t.bioParagraphs.map((paragraph, position) => (
-              <Reveal className="bio-block" key={paragraph.slice(0, 40)}>
-                <span aria-hidden="true" className="bio-index">
-                  {String(position + 1).padStart(2, "0")}
-                </span>
-                <p>{paragraph}</p>
+
+          <div className="bio-thematic-blocks">
+            {t.bioThemes.map((theme) => (
+              <Reveal className="bio-theme-card" key={theme.title}>
+                <h3 className="bio-theme-title">{theme.title}</h3>
+                <p className="bio-theme-text">{theme.content}</p>
               </Reveal>
             ))}
           </div>
@@ -1038,37 +1092,57 @@ function BioPage({ language }: { language: Language }) {
     </section>
   )
 }
- 
+
 function FilmCard({ film, language }: { film: Film; language: Language }) {
   const t = copy[language]
   const link = `#/film/${film.slug}`
   return (
     <article className="film-card">
-      <a aria-hidden="true" className="card-media" href={link} tabIndex={-1}>
-        {film.preview ? (
-          <FallbackImg alt="" loading="lazy" src={film.preview} />
-        ) : (
-          <span>{t.development}</span>
-        )}
-      </a>
-      <h2>
-        <a href={link}>{film.title}</a>
-      </h2>
-      <p>{filmYear(film, t)}</p>
-      <a aria-label={`${t.viewFilm}: ${film.title}`} className="outline-button" href={link}>
-        {t.viewMore}
-        <Triangle />
+      <a
+        aria-label={`${film.title} - ${film.status === "development" ? t.statusDevelopment : film.year}`}
+        className="card-media"
+        href={link}
+      >
+        <FallbackImg alt="" loading="lazy" src={film.preview} />
+        <div className="film-card-overlay">
+          <div className="film-card-content">
+            <h2>{film.title}</h2>
+            <div className="film-card-footer">
+              <p className="film-card-meta">
+                <span>{film.status === "development" ? t.statusDevelopment : film.year}</span>
+                <span className="dot-sep">•</span>
+                <span>{film.genre[language]}</span>
+              </p>
+              <span aria-hidden="true" className="film-card-arrow">
+                <svg
+                  aria-hidden="true"
+                  fill="none"
+                  height="15"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  viewBox="0 0 24 24"
+                  width="15"
+                >
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                  <polyline points="12 5 19 12 12 19" />
+                </svg>
+              </span>
+            </div>
+          </div>
+        </div>
       </a>
     </article>
   )
 }
- 
+
 function FilmsPage({ language }: { language: Language }) {
+  const t = copy[language]
   return (
     <section className="films-page page">
       <header className="page-intro">
-        <h1>Films</h1>
-        <p>2008—2025</p>
+        <h1>{t.films}</h1>
       </header>
       <div className="film-grid">
         {films.map((film) => (
@@ -1080,7 +1154,7 @@ function FilmsPage({ language }: { language: Language }) {
     </section>
   )
 }
- 
+
 function NotFoundPage({ language }: { language: Language }) {
   const t = copy[language]
   return (
@@ -1094,7 +1168,7 @@ function NotFoundPage({ language }: { language: Language }) {
     </section>
   )
 }
- 
+
 function Lightbox({
   film,
   initialIndex,
@@ -1111,36 +1185,17 @@ function Lightbox({
   const [index, setIndex] = useState(initialIndex)
   const dialogRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
-  const touchStartX = useRef<number | null>(null)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
- 
+
   const goPrevious = () => setIndex((current) => (current - 1 + total) % total)
   const goNext = () => setIndex((current) => (current + 1) % total)
- 
-  // Teclado (Esc, flechas, trampa de foco con Tab) + bloqueo de scroll del fondo
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onCloseRef.current()
       if (event.key === "ArrowLeft") setIndex((current) => (current - 1 + total) % total)
       if (event.key === "ArrowRight") setIndex((current) => (current + 1) % total)
-      if (event.key === "Tab") {
-        const focusables = dialogRef.current?.querySelectorAll<HTMLElement>("button")
-        if (!focusables?.length) return
-        const first = focusables[0]
-        const last = focusables[focusables.length - 1]
-        const active = document.activeElement
-        if (!dialogRef.current?.contains(active)) {
-          event.preventDefault()
-          first.focus()
-        } else if (event.shiftKey && active === first) {
-          event.preventDefault()
-          last.focus()
-        } else if (!event.shiftKey && active === last) {
-          event.preventDefault()
-          first.focus()
-        }
-      }
     }
     document.body.classList.add("lightbox-open")
     window.addEventListener("keydown", onKeyDown)
@@ -1149,75 +1204,20 @@ function Lightbox({
       window.removeEventListener("keydown", onKeyDown)
     }
   }, [total])
- 
-  // El botón Atrás del navegador cierra el visor en lugar de salir de la página
-  useEffect(() => {
-    let pushed = false
-    let closedByBrowser = false
-    const timer = window.setTimeout(() => {
-      window.history.pushState({ lightbox: true }, "")
-      pushed = true
-    }, 0)
-    const onPopState = () => {
-      closedByBrowser = true
-      onCloseRef.current()
-    }
-    window.addEventListener("popstate", onPopState)
-    return () => {
-      window.clearTimeout(timer)
-      window.removeEventListener("popstate", onPopState)
-      if (pushed && !closedByBrowser) window.history.back()
-    }
-  }, [])
- 
-  // Foco: entra al visor y vuelve a la miniatura al cerrar
-  useEffect(() => {
-    const opener = document.activeElement as HTMLElement | null
-    closeRef.current?.focus()
-    return () => opener?.focus()
-  }, [])
- 
-  // Precarga de la imagen siguiente y la anterior
-  useEffect(() => {
-    ;[(index + 1) % total, (index - 1 + total) % total].forEach((position) => {
-      const image = new Image()
-      image.src = resolvedSrc[film.stills[position]] ?? film.stills[position]
-    })
-  }, [index, total, film.stills])
- 
-  const onTouchStart = (event: ReactTouchEvent) => {
-    touchStartX.current = event.touches[0].clientX
-  }
- 
-  const onTouchEnd = (event: ReactTouchEvent) => {
-    if (touchStartX.current === null || total < 2) return
-    const delta = event.changedTouches[0].clientX - touchStartX.current
-    touchStartX.current = null
-    if (delta > 50) goPrevious()
-    if (delta < -50) goNext()
-  }
- 
-  // Se renderiza en document.body para que cubra todo, incluido el menú lateral
-  return createPortal(
+
+  return (
     <div
-      aria-label={`${t.gallery} ${film.title}`}
+      aria-label={film.title}
       aria-modal="true"
       className="lightbox"
-      onClick={onClose}
-      onTouchEnd={onTouchEnd}
-      onTouchStart={onTouchStart}
+      onClick={() => onCloseRef.current()}
       ref={dialogRef}
       role="dialog"
     >
-      <span className="lightbox-title">{film.title}</span>
- 
       <button
         aria-label={t.close}
         className="lightbox-button lightbox-close"
-        onClick={(event) => {
-          event.stopPropagation()
-          onClose()
-        }}
+        onClick={() => onCloseRef.current()}
         ref={closeRef}
         type="button"
       >
@@ -1225,7 +1225,7 @@ function Lightbox({
           <path d="M5 5l14 14M19 5L5 19" />
         </svg>
       </button>
- 
+
       <FallbackImg
         alt={`${film.title}, ${index + 1} / ${total}`}
         className="lightbox-image"
@@ -1233,7 +1233,7 @@ function Lightbox({
         onClick={(event) => event.stopPropagation()}
         src={film.stills[index]}
       />
- 
+
       {total > 1 && (
         <>
           <button
@@ -1260,196 +1260,236 @@ function Lightbox({
           </button>
         </>
       )}
- 
+
       <span className="lightbox-count">
         {index + 1} / {total}
       </span>
-    </div>,
-    document.body,
+    </div>
   )
 }
- 
-/* Laureles en una sola fila, sin barra de scroll. Se indica que hay más contenido con un degradé
-   en el borde correspondiente y un triángulo chico clickeable. La rueda del mouse (y el swipe en
-   móvil) también la desplazan; al llegar al borde, la rueda vuelve a mover la página. */
+
 function LaurelsStrip({
   children,
   label,
-  title,
-  prevLabel,
   nextLabel,
+  prevLabel,
+  title,
 }: {
   children: ReactNode
   label: string
-  title: string
-  prevLabel: string
   nextLabel: string
+  prevLabel: string
+  title: string
 }) {
   const ref = useRef<HTMLUListElement>(null)
-  const [edges, setEdges] = useState({ start: true, end: true })
- 
+  const [edges, setEdges] = useState({ start: true, end: false })
+  const [hasOverflow, setHasOverflow] = useState(false)
+
+  const updateEdges = () => {
+    const el = ref.current
+    if (!el) return
+    const overflow = el.scrollWidth > el.clientWidth + 2
+    setHasOverflow(overflow)
+    const start = el.scrollLeft <= 2
+    const end = el.scrollLeft + el.clientWidth >= el.scrollWidth - 2
+    setEdges({ start, end })
+  }
+
+  useLayoutEffect(() => {
+    updateEdges()
+  }, [])
+
   useEffect(() => {
-    const node = ref.current
-    if (!node) return
-    const update = () => {
-      const max = node.scrollWidth - node.clientWidth
-      const start = node.scrollLeft <= 1
-      const end = node.scrollLeft >= max - 1
-      setEdges((prev) => (prev.start === start && prev.end === end ? prev : { start, end }))
-    }
-    const onWheel = (event: WheelEvent) => {
-      const max = node.scrollWidth - node.clientWidth
-      if (max <= 0) return
-      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
-      const atStart = node.scrollLeft <= 0 && delta < 0
-      const atEnd = node.scrollLeft >= max - 1 && delta > 0
-      if (!delta || atStart || atEnd) return
-      event.preventDefault()
-      node.scrollLeft += delta
-    }
-    update()
-    node.addEventListener("scroll", update, { passive: true })
-    node.addEventListener("load", update, true) // las imágenes cambian el ancho al cargar
-    node.addEventListener("error", update, true)
-    node.addEventListener("wheel", onWheel, { passive: false })
-    window.addEventListener("resize", update)
+    const el = ref.current
+    if (!el) return
+    const onScroll = () => updateEdges()
+    el.addEventListener("scroll", onScroll, { passive: true })
+    window.addEventListener("resize", onScroll)
     return () => {
-      node.removeEventListener("scroll", update)
-      node.removeEventListener("load", update, true)
-      node.removeEventListener("error", update, true)
-      node.removeEventListener("wheel", onWheel)
-      window.removeEventListener("resize", update)
+      el.removeEventListener("scroll", onScroll)
+      window.removeEventListener("resize", onScroll)
     }
   }, [])
- 
-  const scrollByPage = (direction: 1 | -1) => {
-    const node = ref.current
-    if (node) node.scrollBy({ left: direction * node.clientWidth * 0.7, behavior: "smooth" })
+
+  const scrollByPage = (direction: -1 | 1) => {
+    const el = ref.current
+    if (!el) return
+    el.scrollBy({ left: direction * (el.clientWidth * 0.75), behavior: "smooth" })
   }
- 
+
   return (
     <div className={`laurels-scroller ${edges.start ? "" : "has-prev"} ${edges.end ? "" : "has-next"}`}>
       <ul aria-label={label} className="laurels" ref={ref} tabIndex={0} title={title}>
         {children}
       </ul>
-      <button
-        aria-label={prevLabel}
-        className="laurels-arrow previous"
-        disabled={edges.start}
-        onClick={() => scrollByPage(-1)}
-        type="button"
-      >
-        <Triangle dir="left" size={9} />
-      </button>
-      <button
-        aria-label={nextLabel}
-        className="laurels-arrow next"
-        disabled={edges.end}
-        onClick={() => scrollByPage(1)}
-        type="button"
-      >
-        <Triangle size={9} />
-      </button>
+      {hasOverflow && (
+        <>
+          <button
+            aria-label={prevLabel}
+            className="laurels-arrow previous"
+            disabled={edges.start}
+            onClick={() => scrollByPage(-1)}
+            type="button"
+          >
+            <Triangle dir="left" size={9} />
+          </button>
+          <button
+            aria-label={nextLabel}
+            className="laurels-arrow next"
+            disabled={edges.end}
+            onClick={() => scrollByPage(1)}
+            type="button"
+          >
+            <Triangle size={9} />
+          </button>
+        </>
+      )}
     </div>
   )
 }
- 
-function FilmPage({ film, language }: { film: Film; language: Language }) {
+
+function getMarketColsClass(count: number): string {
+  if (count === 3 || count === 5 || count === 6) return "cols-3"
+  if (count === 4 || count >= 7) return "cols-4"
+  return "cols-3"
+}
+
+function FilmPage({
+  film,
+  language,
+}: {
+  film: Film
+  language: Language
+}) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const t = copy[language]
   const currentIndex = navigableFilms.findIndex((item) => item.slug === film.slug)
   const newer = currentIndex > 0 ? navigableFilms[currentIndex - 1] : null
   const older = currentIndex < navigableFilms.length - 1 ? navigableFilms[currentIndex + 1] : null
- 
-  const rows: string[][] = [
-    ...(film.credits ?? []).map((credit) => [credit.role[language], credit.people]),
-    ...(film.feature || film.duration ? [[t.duration, film.feature ? t.feature : (film.duration as string)]] : []),
+
+  // 9 Campos Obligatorios estrictos
+  const fields = [
+    { label: t.fieldTitle, value: film.title },
+    { label: t.fieldScreenplay, value: film.screenplay },
+    { label: t.fieldDirection, value: film.direction },
+    { label: t.fieldProduction, value: film.production },
+    { label: t.fieldGenre, value: film.genre[language] },
+    { label: t.fieldTechnique, value: film.technique[language] },
+    { label: t.fieldDuration, value: film.duration[language] },
+    { label: t.fieldTarget, value: film.target[language] },
+    {
+      label: t.fieldStatus,
+      value: film.status === "completed" ? t.statusCompleted : t.statusDevelopment,
+    },
   ]
-  const hasCredits = rows.length > 0 || Boolean(film.coProduction?.length) || Boolean(film.vimeo)
- 
+
+  const half = Math.ceil(fields.length / 2)
+  const col1 = fields.slice(0, half)
+  const col2 = fields.slice(half)
+
+  // Reproductor: YouTube únicamente para El Empleo y Padre
+  const isYouTubeMonetized = (film.slug === "el-empleo" || film.slug === "padre") && Boolean(film.youtube)
+
   return (
     <article className="film-page page">
-      <header className="film-header">
-        <a className="text-link" href="#/films">
-          <Triangle dir="left" />
-          {t.back}
-        </a>
-      </header>
- 
-      {film.youtube ? (
-        <Reveal className="main-image film-video">
-          <iframe
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
-            loading="lazy"
-            referrerPolicy="strict-origin-when-cross-origin"
-            src={youtubeEmbed(film.youtube)}
-            title={`${t.video}: ${film.title}`}
-          />
-        </Reveal>
-      ) : (
-        film.preview && (
-          <Reveal className="main-image">
-            <FallbackImg alt={film.title} src={film.preview} />
+      {isYouTubeMonetized ? (
+        <>
+          <Reveal className="main-image film-video">
+            <iframe
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+              loading="lazy"
+              src={youtubeEmbed(film.youtube!)}
+              title={`${t.video}: ${film.title}`}
+            />
           </Reveal>
-        )
-      )}
- 
-      <div className="film-title">
-        <h1>{film.title}</h1>
-        <p>{filmYear(film, t)}</p>
-      </div>
- 
-      {(film.synopsis || hasCredits) && (
-        <Reveal className="film-details">
-          {film.synopsis && (
-            <section>
-              <h2>{t.synopsis}</h2>
-              <p>{film.synopsis[language]}</p>
-            </section>
-          )}
-          {hasCredits && (
-            <section className="credits">
-              <h2>{t.details}</h2>
-              <dl>
-                {rows.map(([label, value]) => (
-                  <div key={label}>
-                    <dt>{label}</dt>
-                    <dd>{value}</dd>
-                  </div>
-                ))}
-                {film.coProduction && film.coProduction.length > 0 && (
-                  <div>
-                    <dt>{t.coProduction}</dt>
-                    <dd>
-                      {film.coProduction.map((line) => (
-                        <span key={line}>{line}</span>
-                      ))}
-                    </dd>
-                  </div>
-                )}
-                {film.vimeo && (
-                  <div>
-                    <dt>{t.online}</dt>
-                    <dd>
-                      <a className="text-link" href={film.vimeo} rel="noreferrer" target="_blank">
-                        {t.watchVimeo}
-                        <Triangle />
-                      </a>
-                    </dd>
-                  </div>
-                )}
-              </dl>
-            </section>
-          )}
+          <div className="film-title-bar">
+            <div className="film-title">
+              <h1>{film.title}</h1>
+              <p>{film.year}</p>
+            </div>
+            {film.youtube && (
+              <div className="film-watch-cta">
+                <a
+                  className="outline-button"
+                  href={`https://www.youtube.com/watch?v=${film.youtube.id}`}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  {language === "ES" ? "Ver en YouTube" : "Watch on YouTube"}
+                  <Triangle />
+                </a>
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        <Reveal className="film-hero-banner">
+          <div className="film-hero-media">
+            <FallbackImg alt={film.title} src={film.preview} />
+            <div className="film-hero-gradient" />
+          </div>
+          <div className="film-hero-overlay">
+            <div className="film-hero-info">
+              <h1 className="film-hero-title">{film.title}</h1>
+              <p className="film-hero-status">
+                {film.status === "development" ? t.statusDevelopment : film.year}
+              </p>
+            </div>
+            {film.vimeo?.url && (
+              <div className="film-hero-action">
+                <a
+                  className="outline-button vimeo-button"
+                  href={film.vimeo.url}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  {t.watchVimeo}
+                  <Triangle />
+                </a>
+              </div>
+            )}
+          </div>
         </Reveal>
       )}
- 
+
+      <Reveal className="film-details">
+        {film.synopsis && (
+          <section className="synopsis-section">
+            <h2>{t.synopsis}</h2>
+            <p>{film.synopsis[language]}</p>
+          </section>
+        )}
+
+        <section className="credits-section">
+          <h2>{t.details}</h2>
+          <div className="credits-columns is-two-columns">
+            <dl className="credits-dl">
+              {col1.map((item) => (
+                <div key={item.label}>
+                  <dt>{item.label}</dt>
+                  <dd>{item.value}</dd>
+                </div>
+              ))}
+            </dl>
+            <dl className="credits-dl">
+              {col2.map((item) => (
+                <div key={item.label}>
+                  <dt>{item.label}</dt>
+                  <dd>{item.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </section>
+      </Reveal>
+
+      {/* Lógica Condicional: Laureles para finalizadas, Logotipos de Mercados/Fondos para desarrollo */}
       {film.laurels && film.laurels.length > 0 && (
         <Reveal className="laurels-wrap">
-          <h2>{t.laurels}</h2>
+          <h2>{t.awardsTitle}</h2>
           <LaurelsStrip
-            label={`${t.laurels}: ${film.title}`}
+            label={`${t.awardsTitle}: ${film.title}`}
             nextLabel={t.laurelsNext}
             prevLabel={t.laurelsPrev}
             title={t.laurelsHint}
@@ -1462,7 +1502,22 @@ function FilmPage({ film, language }: { film: Film; language: Language }) {
           </LaurelsStrip>
         </Reveal>
       )}
- 
+
+      {film.markets && film.markets.length > 0 && (
+        <Reveal className="markets-wrap">
+          <h2>{t.marketsTitle}</h2>
+          <div className={`markets-grid ${getMarketColsClass(film.markets.length)}`}>
+            {film.markets.map((m) => (
+              <div className="market-card" key={m.name}>
+                <span className="market-badge">Industry</span>
+                <strong className="market-name">{m.name}</strong>
+                <p className="market-tag">{m.tag}</p>
+              </div>
+            ))}
+          </div>
+        </Reveal>
+      )}
+
       {film.stills.length > 0 && (
         <Reveal className="gallery-wrap">
           <h2>{t.galleryTitle}</h2>
@@ -1480,32 +1535,29 @@ function FilmPage({ film, language }: { film: Film; language: Language }) {
           </div>
         </Reveal>
       )}
- 
+
       <nav aria-label={t.filmsNav} className="film-pagination">
         {newer ? (
-          <a className="pagination-newer" href={`#/film/${newer.slug}`}>
-            <small>
-              <Triangle dir="left" />
-              {t.newer}
-            </small>
-            <span>{newer.title}</span>
+          <a aria-label={`${t.newer}: ${newer.title}`} className="pagination-newer" href={`#/film/${newer.slug}`}>
+            <Triangle dir="left" size={16} />
           </a>
         ) : (
-          <span />
+          <span className="pagination-empty" />
         )}
+        <div className="pagination-center">
+          <a className="text-link pagination-film-btn" href="#/films">
+            {t.films}
+          </a>
+        </div>
         {older ? (
-          <a className="pagination-older" href={`#/film/${older.slug}`}>
-            <small>
-              {t.older}
-              <Triangle />
-            </small>
-            <span>{older.title}</span>
+          <a aria-label={`${t.older}: ${older.title}`} className="pagination-older" href={`#/film/${older.slug}`}>
+            <Triangle dir="right" size={16} />
           </a>
         ) : (
-          <span />
+          <span className="pagination-empty" />
         )}
       </nav>
- 
+
       {lightboxIndex !== null && (
         <Lightbox
           film={film}
@@ -1517,15 +1569,15 @@ function FilmPage({ film, language }: { film: Film; language: Language }) {
     </article>
   )
 }
- 
+
 type FormErrors = { name?: string; email?: string; message?: string }
 type FormStatus = "idle" | "sending" | "sent" | "mailto" | "error"
- 
+
 function ContactPage({ language }: { language: Language }) {
   const t = copy[language]
   const [errors, setErrors] = useState<FormErrors>({})
   const [status, setStatus] = useState<FormStatus>("idle")
- 
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
@@ -1533,29 +1585,28 @@ function ContactPage({ language }: { language: Language }) {
     const name = String(data.get("name") || "").trim()
     const email = String(data.get("email") || "").trim()
     const message = String(data.get("message") || "").trim()
-    const reason = String(data.get("reason") || "")
- 
+
     const nextErrors: FormErrors = {}
     if (!name) nextErrors.name = t.errName
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) nextErrors.email = t.errEmail
+    if (!/^[^s@]+@[^s@]+.[^s@]+$/.test(email)) nextErrors.email = t.errEmail
     if (!message) nextErrors.message = t.errMessage
     setErrors(nextErrors)
- 
+
     const firstError = (["name", "email", "message"] as const).find((key) => nextErrors[key])
     if (firstError) {
       document.getElementById(firstError)?.focus()
       return
     }
- 
-    // Sin servicio configurado: solución provisoria con mailto:
+
+    // Sin servicio configurado: solución mailto: directa y limpia
     if (!FORM_ENDPOINT) {
-      const subject = `${t.mailSubject}: ${reason}`
-      const body = `${message}\n\n${name} (${email})`
+      const subject = `${t.mailSubject} - ${name}`
+      const body = `${message}\n\nDe: ${name}\nEmail: ${email}`
       window.location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
       setStatus("mailto")
       return
     }
- 
+
     setStatus("sending")
     try {
       const response = await fetch(FORM_ENDPOINT, {
@@ -1568,128 +1619,151 @@ function ContactPage({ language }: { language: Language }) {
       setStatus("error")
     }
   }
- 
+
   const done = status === "sent" || status === "mailto"
- 
+
   return (
     <section className="contact-page page">
-      <div className="contact-copy">
+      <header className="page-intro contact-header">
         <h1>{t.contact}</h1>
-        <p>{t.contactIntro}</p>
-        <address>
-          <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
-          <a href="https://www.instagram.com/pat.plaza/" rel="noreferrer" target="_blank">
-            Instagram @pat.plaza
-          </a>
-          <a href="https://ojoraro.com.ar/" rel="noreferrer" target="_blank">
-            Ojo Raro
-            <Triangle />
-          </a>
-        </address>
-      </div>
- 
-      <div className={`contact-form-wrap ${done ? "is-sent" : ""}`}>
-        {done ? (
-          <div className="success-message" role="status">
-            <p>{status === "mailto" ? t.sentMailto : t.sent}</p>
-            <button
-              className="text-link"
-              onClick={() => {
-                setStatus("idle")
-                setErrors({})
-              }}
-              type="button"
-            >
-              {t.sendAnother}
-            </button>
+      </header>
+
+      <div className="contact-grid">
+        <div className="contact-copy">
+          {/* Dos vías de contacto directo bien diferenciadas visualmente */}
+          <div className="contact-channels">
+            <div className="contact-channel-card personal">
+              <span className="channel-badge">{t.personalContactBadge}</span>
+              <h3>{t.personalContactTitle}</h3>
+              <p>{t.personalContactDesc}</p>
+              <a className="channel-email-btn" href={`mailto:${CONTACT_EMAIL}`}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="2" y="4" width="20" height="16" rx="2" />
+                  <path d="M22 7l-10 7L2 7" />
+                </svg>
+                <span>{CONTACT_EMAIL}</span>
+              </a>
+            </div>
+
+            <div className="contact-channel-card institutional">
+              <span className="channel-badge">{t.institutionalContactBadge}</span>
+              <h3>{t.institutionalContactTitle}</h3>
+              <p>{t.institutionalContactDesc}</p>
+              <div className="channel-actions">
+                <a className="channel-email-btn" href={`mailto:${STUDIO_EMAIL}`}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="2" y="4" width="20" height="16" rx="2" />
+                    <path d="M22 7l-10 7L2 7" />
+                  </svg>
+                  <span>{STUDIO_EMAIL}</span>
+                </a>
+                <a className="studio-web-link" href="https://ojoraro.com.ar/" rel="noreferrer" target="_blank">
+                  <span>ojoraro.com.ar</span>
+                  <Triangle />
+                </a>
+              </div>
+            </div>
           </div>
-        ) : (
-          <form noValidate onSubmit={submit}>
-            <div className="field">
-              <label htmlFor="name">{t.fieldName}</label>
-              <input
-                aria-describedby={errors.name ? "name-error" : undefined}
-                aria-invalid={errors.name ? true : undefined}
-                autoComplete="name"
-                id="name"
-                name="name"
-              />
-              {errors.name && (
-                <span className="field-error" id="name-error">
-                  {errors.name}
-                </span>
-              )}
-            </div>
-            <div className="field">
-              <label htmlFor="email">{t.fieldEmail}</label>
-              <input
-                aria-describedby={errors.email ? "email-error" : undefined}
-                aria-invalid={errors.email ? true : undefined}
-                autoComplete="email"
-                id="email"
-                name="email"
-                type="email"
-              />
-              {errors.email && (
-                <span className="field-error" id="email-error">
-                  {errors.email}
-                </span>
-              )}
-            </div>
-            <div className="field">
-              <label htmlFor="reason">{t.fieldReason}</label>
-              <select id="reason" name="reason">
-                {t.reasons.map((reason) => (
-                  <option key={reason} value={reason}>
-                    {reason}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label htmlFor="message">{t.fieldMessage}</label>
-              <textarea
-                aria-describedby={errors.message ? "message-error" : undefined}
-                aria-invalid={errors.message ? true : undefined}
-                id="message"
-                name="message"
-                rows={6}
-              />
-              {errors.message && (
-                <span className="field-error" id="message-error">
-                  {errors.message}
-                </span>
-              )}
-            </div>
-            <div aria-hidden="true" className="honeypot">
-              <label htmlFor="website">{t.fieldWebsite}</label>
-              <input autoComplete="off" id="website" name="website" tabIndex={-1} />
-            </div>
-            {status === "error" && (
-              <p className="form-error" role="alert">
-                {t.sendError}
-              </p>
+
+          <address className="contact-social">
+            <a href="https://www.instagram.com/pat.plaza/" rel="noreferrer" target="_blank">
+              Instagram @pat.plaza
+            </a>
+          </address>
+        </div>
+
+        <div className={`contact-form-wrap ${done ? "is-sent" : ""}`}>
+          <div className="contact-form-card">
+            <h3 className="form-card-title">{t.sendMessage}</h3>
+            {done ? (
+              <div className="success-message" role="status">
+                <p>{status === "mailto" ? t.sentMailto : t.sent}</p>
+                <button
+                  className="text-link"
+                  onClick={() => {
+                    setStatus("idle")
+                    setErrors({})
+                  }}
+                  type="button"
+                >
+                  {t.sendAnother}
+                </button>
+              </div>
+            ) : (
+              <form noValidate onSubmit={submit}>
+                <div className="field">
+                  <label htmlFor="name">{t.fieldName}</label>
+                  <input
+                    aria-describedby={errors.name ? "name-error" : undefined}
+                    aria-invalid={errors.name ? true : undefined}
+                    autoComplete="name"
+                    id="name"
+                    name="name"
+                  />
+                  {errors.name && (
+                    <span className="field-error" id="name-error">
+                      {errors.name}
+                    </span>
+                  )}
+                </div>
+                <div className="field">
+                  <label htmlFor="email">{t.fieldEmail}</label>
+                  <input
+                    aria-describedby={errors.email ? "email-error" : undefined}
+                    aria-invalid={errors.email ? true : undefined}
+                    autoComplete="email"
+                    id="email"
+                    name="email"
+                    type="email"
+                  />
+                  {errors.email && (
+                    <span className="field-error" id="email-error">
+                      {errors.email}
+                    </span>
+                  )}
+                </div>
+                <div className="field">
+                  <label htmlFor="message">{t.fieldMessage}</label>
+                  <textarea
+                    aria-describedby={errors.message ? "message-error" : undefined}
+                    aria-invalid={errors.message ? true : undefined}
+                    id="message"
+                    name="message"
+                    rows={6}
+                  />
+                  {errors.message && (
+                    <span className="field-error" id="message-error">
+                      {errors.message}
+                    </span>
+                  )}
+                </div>
+                <div aria-hidden="true" className="honeypot">
+                  <label htmlFor="website">{t.fieldWebsite}</label>
+                  <input autoComplete="off" id="website" name="website" tabIndex={-1} />
+                </div>
+                {status === "error" && (
+                  <p className="form-error" role="alert">
+                    {t.sendError}
+                  </p>
+                )}
+                <button className="outline-button" disabled={status === "sending"} type="submit">
+                  {status === "sending" ? t.sending : t.send}
+                  <Triangle />
+                </button>
+              </form>
             )}
-            <button className="outline-button" disabled={status === "sending"} type="submit">
-              {status === "sending" ? t.sending : t.send}
-            </button>
-          </form>
-        )}
+          </div>
+        </div>
       </div>
     </section>
   )
 }
- 
+
 export default function App() {
   const route = useRoute()
   const [language, setLanguage] = useState<Language>(() => (readStorage("language") === "EN" ? "EN" : "ES"))
-  const [theme, setTheme] = useState<Theme>(() => {
-    const savedTheme = readStorage("theme")
-    if (savedTheme === "light" || savedTheme === "dark") return savedTheme
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
-  })
   const t = copy[language]
- 
+
   const filmSlug = route.startsWith("film/") ? route.split("/")[1] : null
   const selectedFilm = films.find((film) => film.slug === filmSlug)
   const view = selectedFilm
@@ -1703,7 +1777,7 @@ export default function App() {
           : route === "contacto"
             ? "contact"
             : "notfound"
- 
+
   const pageTitle =
     view === "film" && selectedFilm
       ? selectedFilm.title
@@ -1717,21 +1791,23 @@ export default function App() {
               ? t.notFoundTitle
               : ""
   const documentTitle = pageTitle ? `${pageTitle} — Patricio Plaza` : "Patricio Plaza"
- 
+
   useEffect(() => {
-    document.documentElement.dataset.theme = theme
-    writeStorage("theme", theme)
-  }, [theme])
- 
+    // Tema oscuro estricto global
+    document.documentElement.dataset.theme = "dark"
+    document.documentElement.style.backgroundColor = "#000000"
+    document.body.style.backgroundColor = "#000000"
+  }, [])
+
   useEffect(() => {
     document.documentElement.lang = language.toLowerCase()
     writeStorage("language", language)
   }, [language])
- 
+
   useEffect(() => {
     document.title = documentTitle
   }, [documentTitle])
- 
+
   return (
     <>
       <a
@@ -1748,8 +1824,6 @@ export default function App() {
         language={language}
         route={route}
         setLanguage={setLanguage}
-        setTheme={setTheme}
-        theme={theme}
       />
       <main className="site-content" id="main" key={route} tabIndex={-1}>
         {view === "film" && selectedFilm ? (
