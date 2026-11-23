@@ -874,18 +874,33 @@ function HeroCarousel({ language }: { language: Language }) {
   const [animate, setAnimate] = useState(true)
   const [hoverPaused, setHoverPaused] = useState(false)
   const [userPaused, setUserPaused] = useState(false)
+  const [cartelVisible, setCartelVisible] = useState(false)
   const touchStartX = useRef<number | null>(null)
   const slides = count > 0 ? [...items, items[0]] : []
 
   const isPaused = hoverPaused || userPaused
 
+  // El cartel aparece únicamente después de que la foto terminó su animación inicial / keyframe
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setCartelVisible(true)
+    }, 850)
+    return () => window.clearTimeout(timer)
+  }, [])
+
   useEffect(() => {
     if (isPaused || count <= 1) return
+    const fadeTimer = window.setTimeout(() => {
+      setCartelVisible(false)
+    }, 4100)
     const timer = window.setInterval(() => {
       setIndex((current) => current + 1)
     }, 4500)
-    return () => window.clearInterval(timer)
-  }, [isPaused, count])
+    return () => {
+      window.clearTimeout(fadeTimer)
+      window.clearInterval(timer)
+    }
+  }, [isPaused, count, index])
 
   useEffect(() => {
     if (index !== count) return
@@ -902,10 +917,28 @@ function HeroCarousel({ language }: { language: Language }) {
     return () => cancelAnimationFrame(frame)
   }, [animate])
 
+  // Reactivar el cartel únicamente luego de completada la transición de imagen (850ms)
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setCartelVisible(true)
+    }, 850)
+    return () => window.clearTimeout(timer)
+  }, [index])
+
   if (!count) return null
 
-  const goNext = () => setIndex((current) => (current >= count ? current : current + 1))
+  const goToSlide = (pos: number) => {
+    setCartelVisible(false)
+    setIndex(pos)
+  }
+
+  const goNext = () => {
+    setCartelVisible(false)
+    setIndex((current) => (current >= count ? current : current + 1))
+  }
+
   const goPrevious = () => {
+    setCartelVisible(false)
     if (index <= 0) {
       setAnimate(false)
       setIndex(count - 1)
@@ -928,6 +961,8 @@ function HeroCarousel({ language }: { language: Language }) {
     touchStartX.current = null
   }
 
+  const currentItem = items[index % count]
+
   return (
     <div
       aria-label={t.slideshow}
@@ -940,18 +975,29 @@ function HeroCarousel({ language }: { language: Language }) {
       onTouchEnd={onTouchEnd}
       onTouchStart={onTouchStart}
     >
+      {/* Carrete / reel: ubicado en la esquina superior izquierda y más chico */}
+      <div className="hero-dots">
+        {items.map((_, position) => (
+          <button
+            aria-current={position === index % count ? "true" : undefined}
+            aria-label={`${t.goToSlide} ${position + 1}`}
+            className={position === index % count ? "is-active" : ""}
+            key={position}
+            onClick={() => goToSlide(position)}
+            type="button"
+          >
+            <span />
+          </button>
+        ))}
+      </div>
+
       <div
         className={`hero-track ${animate ? "is-animating" : ""}`}
         style={{ transform: `translateX(-${index * 100}%)` }}
       >
         {slides.map((slide, position) => {
           const isClone = position === count
-          const content = (
-            <>
-              <FallbackImg alt={slide.title ?? ""} src={slide.image} />
-              {slide.title && <span className="hero-label">{slide.title}</span>}
-            </>
-          )
+          const content = <FallbackImg alt={slide.title ?? ""} src={slide.image} />
           return slide.slug ? (
             <a
               aria-hidden={isClone}
@@ -970,6 +1016,14 @@ function HeroCarousel({ language }: { language: Language }) {
           )
         })}
       </div>
+
+      {/* Cartel / bloque de títulos: rosa con 85% de opacidad y tipografía negra.
+          Aparece únicamente después de terminar la animación. Nunca se desplaza con la foto encima. */}
+      {currentItem?.title && (
+        <div className={`hero-label ${cartelVisible ? "is-visible" : ""}`}>
+          {currentItem.title}
+        </div>
+      )}
 
       <button
         aria-label={userPaused ? t.playSlides : t.pauseSlides}
@@ -1010,24 +1064,9 @@ function HeroCarousel({ language }: { language: Language }) {
       )}
 
       <div className="hero-bottom-right">
-        <div className="hero-dots">
-          {items.map((_, position) => (
-            <button
-              aria-current={position === index % count ? "true" : undefined}
-              aria-label={`${t.goToSlide} ${position + 1}`}
-              className={position === index % count ? "is-active" : ""}
-              key={position}
-              onClick={() => setIndex(position)}
-              type="button"
-            >
-              <span />
-            </button>
-          ))}
-        </div>
-
         <a
           className="hero-action-link"
-          href={items[index % count]?.slug ? `#/film/${items[index % count].slug}` : "#/films"}
+          href={currentItem?.slug ? `#/film/${currentItem.slug}` : "#/films"}
         >
           {t.viewFilm}
           <Triangle size={9} />
@@ -1075,13 +1114,18 @@ function BioPage({ language }: { language: Language }) {
           <h2 className="bio-photo-name">Patricio Plaza</h2>
         </Reveal>
         <div className="bio-main">
-          <Reveal>
-            <p className="bio-lead">{t.statement}</p>
+          <Reveal className="bio-featured-statement">
+            <div className="bio-statement-box">
+              <p className="bio-statement-text">{t.statement}</p>
+            </div>
           </Reveal>
 
           <div className="bio-thematic-blocks">
-            {t.bioThemes.map((theme) => (
-              <Reveal className="bio-theme-card" key={theme.title}>
+            {t.bioThemes.map((theme, index) => (
+              <Reveal
+                className={`bio-theme-card ${index === 0 ? "is-formacion" : index === 1 ? "is-experiencia" : ""}`}
+                key={theme.title}
+              >
                 <h3 className="bio-theme-title">{theme.title}</h3>
                 <p className="bio-theme-text">{theme.content}</p>
               </Reveal>
@@ -1238,25 +1282,25 @@ function Lightbox({
         <>
           <button
             aria-label={t.previous}
-            className="lightbox-button lightbox-arrow previous"
+            className="lightbox-arrow previous"
             onClick={(event) => {
               event.stopPropagation()
               goPrevious()
             }}
             type="button"
           >
-            <Triangle dir="left" size={14} />
+            <Triangle dir="left" size={22} />
           </button>
           <button
             aria-label={t.next}
-            className="lightbox-button lightbox-arrow next"
+            className="lightbox-arrow next"
             onClick={(event) => {
               event.stopPropagation()
               goNext()
             }}
             type="button"
           >
-            <Triangle size={14} />
+            <Triangle size={22} />
           </button>
         </>
       )}
@@ -1290,8 +1334,8 @@ function LaurelsStrip({
     if (!el) return
     const overflow = el.scrollWidth > el.clientWidth + 2
     setHasOverflow(overflow)
-    const start = el.scrollLeft <= 2
-    const end = el.scrollLeft + el.clientWidth >= el.scrollWidth - 2
+    const start = el.scrollLeft <= 4
+    const end = el.scrollLeft + el.clientWidth >= el.scrollWidth - 4
     setEdges({ start, end })
   }
 
@@ -1305,9 +1349,22 @@ function LaurelsStrip({
     const onScroll = () => updateEdges()
     el.addEventListener("scroll", onScroll, { passive: true })
     window.addEventListener("resize", onScroll)
+
+    const observer = new ResizeObserver(() => updateEdges())
+    observer.observe(el)
+
+    const imgs = el.querySelectorAll("img")
+    imgs.forEach((img) => {
+      if (!img.complete) {
+        img.addEventListener("load", updateEdges)
+      }
+    })
+
     return () => {
       el.removeEventListener("scroll", onScroll)
       window.removeEventListener("resize", onScroll)
+      observer.disconnect()
+      imgs.forEach((img) => img.removeEventListener("load", updateEdges))
     }
   }, [])
 
@@ -1322,35 +1379,30 @@ function LaurelsStrip({
       <ul aria-label={label} className="laurels" ref={ref} tabIndex={0} title={title}>
         {children}
       </ul>
-      {hasOverflow && (
-        <>
-          <button
-            aria-label={prevLabel}
-            className="laurels-arrow previous"
-            disabled={edges.start}
-            onClick={() => scrollByPage(-1)}
-            type="button"
-          >
-            <Triangle dir="left" size={9} />
-          </button>
-          <button
-            aria-label={nextLabel}
-            className="laurels-arrow next"
-            disabled={edges.end}
-            onClick={() => scrollByPage(1)}
-            type="button"
-          >
-            <Triangle size={9} />
-          </button>
-        </>
-      )}
+      <button
+        aria-label={prevLabel}
+        className="laurels-arrow previous"
+        disabled={edges.start}
+        onClick={() => scrollByPage(-1)}
+        type="button"
+      >
+        <Triangle dir="left" size={14} />
+      </button>
+      <button
+        aria-label={nextLabel}
+        className="laurels-arrow next"
+        disabled={edges.end}
+        onClick={() => scrollByPage(1)}
+        type="button"
+      >
+        <Triangle size={14} />
+      </button>
     </div>
   )
 }
 
 function getMarketColsClass(count: number): string {
-  if (count === 3 || count === 5 || count === 6) return "cols-3"
-  if (count === 4 || count >= 7) return "cols-4"
+  if (count === 4) return "cols-4"
   return "cols-3"
 }
 
@@ -1403,160 +1455,271 @@ function FilmPage({
               title={`${t.video}: ${film.title}`}
             />
           </Reveal>
-          <div className="film-title-bar">
-            <div className="film-title">
-              <h1>{film.title}</h1>
-              <p>{film.year}</p>
+          <div className="film-body-container">
+            <div className="film-title-bar">
+              <div className="film-title">
+                <h1>{film.title}</h1>
+                <p>{film.year}</p>
+              </div>
+              {film.youtube && (
+                <div className="film-watch-cta">
+                  <a
+                    className="outline-button"
+                    href={`https://www.youtube.com/watch?v=${film.youtube.id}`}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    {language === "ES" ? "Ver en YouTube" : "Watch on YouTube"}
+                    <Triangle />
+                  </a>
+                </div>
+              )}
             </div>
-            {film.youtube && (
-              <div className="film-watch-cta">
-                <a
-                  className="outline-button"
-                  href={`https://www.youtube.com/watch?v=${film.youtube.id}`}
-                  rel="noreferrer"
-                  target="_blank"
+
+            {film.synopsis && (
+              <Reveal className="film-details">
+                <section className="synopsis-section">
+                  <h2>{t.synopsis}</h2>
+                  <p>{film.synopsis[language]}</p>
+                </section>
+              </Reveal>
+            )}
+
+            <Reveal className="film-details">
+              <section className="credits-section">
+                <h2>{t.details}</h2>
+                <div className="credits-columns is-two-columns">
+                  <dl className="credits-dl">
+                    {col1.map((item) => (
+                      <div key={item.label}>
+                        <dt>{item.label}</dt>
+                        <dd>{item.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <dl className="credits-dl">
+                    {col2.map((item) => (
+                      <div key={item.label}>
+                        <dt>{item.label}</dt>
+                        <dd>{item.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              </section>
+            </Reveal>
+
+            {film.laurels && film.laurels.length > 0 && (
+              <Reveal className="laurels-wrap">
+                <h2>{t.awardsTitle}</h2>
+                <LaurelsStrip
+                  label={`${t.awardsTitle}: ${film.title}`}
+                  nextLabel={t.laurelsNext}
+                  prevLabel={t.laurelsPrev}
+                  title={t.laurelsHint}
                 >
-                  {language === "ES" ? "Ver en YouTube" : "Watch on YouTube"}
-                  <Triangle />
+                  {film.laurels.map((name) => (
+                    <li key={name}>
+                      <FallbackImg alt="" hideOnFail src={laurel(film.laurelsFolder ?? "", name)} />
+                    </li>
+                  ))}
+                </LaurelsStrip>
+              </Reveal>
+            )}
+
+            {film.markets && film.markets.length > 0 && (
+              <Reveal className="markets-wrap">
+                <h2>{t.marketsTitle}</h2>
+                <div className={`markets-grid ${getMarketColsClass(film.markets.length)}`}>
+                  {film.markets.map((m) => (
+                    <div className="market-card" key={m.name}>
+                      <strong className="market-name">{m.name}</strong>
+                      <p className="market-tag">{m.tag}</p>
+                    </div>
+                  ))}
+                </div>
+              </Reveal>
+            )}
+
+            {film.stills.length > 0 && (
+              <Reveal className="gallery-wrap">
+                <h2>{t.galleryTitle}</h2>
+                <div className="film-gallery">
+                  {film.stills.map((image, index) => (
+                    <button
+                      aria-label={`${t.enlarge} ${index + 1}`}
+                      key={image}
+                      onClick={() => setLightboxIndex(index)}
+                      type="button"
+                    >
+                      <FallbackImg alt={`${film.title}, ${t.stillOf.toLowerCase()} ${index + 1}`} loading="lazy" src={image} />
+                    </button>
+                  ))}
+                </div>
+              </Reveal>
+            )}
+
+            <nav aria-label={t.filmsNav} className="film-pagination">
+              {newer ? (
+                <a aria-label={`${t.newer}: ${newer.title}`} className="pagination-newer" href={`#/film/${newer.slug}`}>
+                  <Triangle dir="left" size={16} />
+                </a>
+              ) : (
+                <span className="pagination-empty" />
+              )}
+              <div className="pagination-center">
+                <a className="text-link pagination-film-btn" href="#/films">
+                  {t.films}
                 </a>
               </div>
-            )}
+              {older ? (
+                <a aria-label={`${t.older}: ${older.title}`} className="pagination-older" href={`#/film/${older.slug}`}>
+                  <Triangle dir="right" size={16} />
+                </a>
+              ) : (
+                <span className="pagination-empty" />
+              )}
+            </nav>
           </div>
         </>
       ) : (
-        <Reveal className="film-hero-banner">
-          <div className="film-hero-media">
+        <>
+          {/* Imagen principal (hero): pegada al borde del sidebar y margen superior sin marco envolvente */}
+          <div className="film-hero-full">
             <FallbackImg alt={film.title} src={film.preview} />
-            <div className="film-hero-gradient" />
           </div>
-          <div className="film-hero-overlay">
-            <div className="film-hero-info">
-              <h1 className="film-hero-title">{film.title}</h1>
-              <p className="film-hero-status">
-                {film.status === "development" ? t.statusDevelopment : film.year}
-              </p>
-            </div>
-            {film.vimeo?.url && (
-              <div className="film-hero-action">
-                <a
-                  className="outline-button vimeo-button"
-                  href={film.vimeo.url}
-                  rel="noreferrer"
-                  target="_blank"
+
+          <div className="film-body-container">
+            {/* Título de la película alineado horizontalmente con Sinopsis */}
+            <Reveal className="film-intro-grid">
+              <div className="film-heading-col">
+                <h1 className="film-standalone-title">{film.title}</h1>
+                <p className="film-standalone-status">
+                  {film.status === "development" ? t.statusDevelopment : film.year}
+                </p>
+                {/* Botón directo a Vimeo: margen izquierdo alineado con los elementos inferiores */}
+                {film.vimeo?.url && (
+                  <div className="film-vimeo-action">
+                    <a
+                      className="outline-button vimeo-button"
+                      href={film.vimeo.url}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      {t.watchVimeo}
+                      <Triangle />
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              {film.synopsis && (
+                <section className="synopsis-section">
+                  <h2>{t.synopsis}</h2>
+                  <p>{film.synopsis[language]}</p>
+                </section>
+              )}
+            </Reveal>
+
+            <Reveal className="film-details">
+              <section className="credits-section">
+                <h2>{t.details}</h2>
+                <div className="credits-columns is-two-columns">
+                  <dl className="credits-dl">
+                    {col1.map((item) => (
+                      <div key={item.label}>
+                        <dt>{item.label}</dt>
+                        <dd>{item.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <dl className="credits-dl">
+                    {col2.map((item) => (
+                      <div key={item.label}>
+                        <dt>{item.label}</dt>
+                        <dd>{item.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              </section>
+            </Reveal>
+
+            {/* Lógica Condicional: Laureles para finalizadas, Logotipos de Mercados/Fondos para desarrollo */}
+            {film.laurels && film.laurels.length > 0 && (
+              <Reveal className="laurels-wrap">
+                <h2>{t.awardsTitle}</h2>
+                <LaurelsStrip
+                  label={`${t.awardsTitle}: ${film.title}`}
+                  nextLabel={t.laurelsNext}
+                  prevLabel={t.laurelsPrev}
+                  title={t.laurelsHint}
                 >
-                  {t.watchVimeo}
-                  <Triangle />
+                  {film.laurels.map((name) => (
+                    <li key={name}>
+                      <FallbackImg alt="" hideOnFail src={laurel(film.laurelsFolder ?? "", name)} />
+                    </li>
+                  ))}
+                </LaurelsStrip>
+              </Reveal>
+            )}
+
+            {film.markets && film.markets.length > 0 && (
+              <Reveal className="markets-wrap">
+                <h2>{t.marketsTitle}</h2>
+                <div className={`markets-grid ${getMarketColsClass(film.markets.length)}`}>
+                  {film.markets.map((m) => (
+                    <div className="market-card" key={m.name}>
+                      <strong className="market-name">{m.name}</strong>
+                      <p className="market-tag">{m.tag}</p>
+                    </div>
+                  ))}
+                </div>
+              </Reveal>
+            )}
+
+            {film.stills.length > 0 && (
+              <Reveal className="gallery-wrap">
+                <h2>{t.galleryTitle}</h2>
+                <div className="film-gallery">
+                  {film.stills.map((image, index) => (
+                    <button
+                      aria-label={`${t.enlarge} ${index + 1}`}
+                      key={image}
+                      onClick={() => setLightboxIndex(index)}
+                      type="button"
+                    >
+                      <FallbackImg alt={`${film.title}, ${t.stillOf.toLowerCase()} ${index + 1}`} loading="lazy" src={image} />
+                    </button>
+                  ))}
+                </div>
+              </Reveal>
+            )}
+
+            <nav aria-label={t.filmsNav} className="film-pagination">
+              {newer ? (
+                <a aria-label={`${t.newer}: ${newer.title}`} className="pagination-newer" href={`#/film/${newer.slug}`}>
+                  <Triangle dir="left" size={16} />
+                </a>
+              ) : (
+                <span className="pagination-empty" />
+              )}
+              <div className="pagination-center">
+                <a className="text-link pagination-film-btn" href="#/films">
+                  {t.films}
                 </a>
               </div>
-            )}
+              {older ? (
+                <a aria-label={`${t.older}: ${older.title}`} className="pagination-older" href={`#/film/${older.slug}`}>
+                  <Triangle dir="right" size={16} />
+                </a>
+              ) : (
+                <span className="pagination-empty" />
+              )}
+            </nav>
           </div>
-        </Reveal>
+        </>
       )}
-
-      <Reveal className="film-details">
-        {film.synopsis && (
-          <section className="synopsis-section">
-            <h2>{t.synopsis}</h2>
-            <p>{film.synopsis[language]}</p>
-          </section>
-        )}
-
-        <section className="credits-section">
-          <h2>{t.details}</h2>
-          <div className="credits-columns is-two-columns">
-            <dl className="credits-dl">
-              {col1.map((item) => (
-                <div key={item.label}>
-                  <dt>{item.label}</dt>
-                  <dd>{item.value}</dd>
-                </div>
-              ))}
-            </dl>
-            <dl className="credits-dl">
-              {col2.map((item) => (
-                <div key={item.label}>
-                  <dt>{item.label}</dt>
-                  <dd>{item.value}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        </section>
-      </Reveal>
-
-      {/* Lógica Condicional: Laureles para finalizadas, Logotipos de Mercados/Fondos para desarrollo */}
-      {film.laurels && film.laurels.length > 0 && (
-        <Reveal className="laurels-wrap">
-          <h2>{t.awardsTitle}</h2>
-          <LaurelsStrip
-            label={`${t.awardsTitle}: ${film.title}`}
-            nextLabel={t.laurelsNext}
-            prevLabel={t.laurelsPrev}
-            title={t.laurelsHint}
-          >
-            {film.laurels.map((name) => (
-              <li key={name}>
-                <FallbackImg alt="" hideOnFail src={laurel(film.laurelsFolder ?? "", name)} />
-              </li>
-            ))}
-          </LaurelsStrip>
-        </Reveal>
-      )}
-
-      {film.markets && film.markets.length > 0 && (
-        <Reveal className="markets-wrap">
-          <h2>{t.marketsTitle}</h2>
-          <div className={`markets-grid ${getMarketColsClass(film.markets.length)}`}>
-            {film.markets.map((m) => (
-              <div className="market-card" key={m.name}>
-                <span className="market-badge">Industry</span>
-                <strong className="market-name">{m.name}</strong>
-                <p className="market-tag">{m.tag}</p>
-              </div>
-            ))}
-          </div>
-        </Reveal>
-      )}
-
-      {film.stills.length > 0 && (
-        <Reveal className="gallery-wrap">
-          <h2>{t.galleryTitle}</h2>
-          <div className="film-gallery">
-            {film.stills.map((image, index) => (
-              <button
-                aria-label={`${t.enlarge} ${index + 1}`}
-                key={image}
-                onClick={() => setLightboxIndex(index)}
-                type="button"
-              >
-                <FallbackImg alt={`${film.title}, ${t.stillOf.toLowerCase()} ${index + 1}`} loading="lazy" src={image} />
-              </button>
-            ))}
-          </div>
-        </Reveal>
-      )}
-
-      <nav aria-label={t.filmsNav} className="film-pagination">
-        {newer ? (
-          <a aria-label={`${t.newer}: ${newer.title}`} className="pagination-newer" href={`#/film/${newer.slug}`}>
-            <Triangle dir="left" size={16} />
-          </a>
-        ) : (
-          <span className="pagination-empty" />
-        )}
-        <div className="pagination-center">
-          <a className="text-link pagination-film-btn" href="#/films">
-            {t.films}
-          </a>
-        </div>
-        {older ? (
-          <a aria-label={`${t.older}: ${older.title}`} className="pagination-older" href={`#/film/${older.slug}`}>
-            <Triangle dir="right" size={16} />
-          </a>
-        ) : (
-          <span className="pagination-empty" />
-        )}
-      </nav>
 
       {lightboxIndex !== null && (
         <Lightbox
