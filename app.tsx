@@ -268,7 +268,7 @@ const films: Film[] = [
     year: "2025",
     status: "completed",
     preview: still("luzdiabla_stills_01"),
-    vimeo: { url: "https://vimeo.com/783131170" },
+    vimeo: { url: "https://vimeo.com/950817407" },
     synopsis: {
       ES: "Martín, un joven raver urbano, se ve envuelto en un extraño accidente en la ruta camino a una fiesta en medio de la Pampa argentina. Encontrando refugio en una misteriosa pulpería campestre y cobijado por dos extraños lugareños, la paranoia de Martín comienza a apoderarse de él. Mientras las horas avanzan, su percepción empieza a distorsionarse, desatando visiones inquietantes que lo llevarán a enfrentarse a las fuerzas sobrenaturales que se esconden en la noche.",
       EN: "Martín, a young urban raver, becomes involved in a strange accident on the road while traveling to a party in the heart of the Argentine Pampas. Taking refuge in a mysterious rural general store and sheltered by two enigmatic locals, Martín begins to succumb to paranoia. As the hours pass, his perception starts to distort, unleashing unsettling visions that will force him to confront the supernatural forces lurking in the night.",
@@ -310,7 +310,7 @@ const films: Film[] = [
     year: "2023",
     status: "completed",
     preview: still("carne de dios_stills_01"),
-    vimeo: { url: "https://vimeo.com/783131170" },
+    vimeo: { url: "https://vimeo.com/768956654" },
     synopsis: {
       ES: "En el México de la etapa colonial, un fraile español víctima de una extraña enfermedad deberá soportar en su propio cuerpo los rituales nativos que ha estado persiguiendo.",
       EN: "In colonial Mexico, a Spanish friar afflicted by a strange illness must endure in his own flesh the native rituals he has been relentlessly pursuing.",
@@ -1042,27 +1042,6 @@ function HeroCarousel({ language }: { language: Language }) {
         )}
       </button>
 
-      {count > 1 && (
-        <>
-          <button
-            aria-label={t.prevSlide}
-            className="hero-control hero-arrow previous"
-            onClick={goPrevious}
-            type="button"
-          >
-            <Triangle dir="left" size={16} />
-          </button>
-          <button
-            aria-label={t.nextSlide}
-            className="hero-control hero-arrow next"
-            onClick={goNext}
-            type="button"
-          >
-            <Triangle size={16} />
-          </button>
-        </>
-      )}
-
       <div className="hero-bottom-right">
         <a
           className="hero-action-link"
@@ -1470,19 +1449,6 @@ function FilmPage({
                 <h1>{film.title}</h1>
                 <p>{film.year}</p>
               </div>
-              {film.youtube && (
-                <div className="film-watch-cta">
-                  <a
-                    className="outline-button"
-                    href={`https://www.youtube.com/watch?v=${film.youtube.id}`}
-                    rel="noreferrer"
-                    target="_blank"
-                  >
-                    {language === "ES" ? "Ver en YouTube" : "Watch on YouTube"}
-                    <Triangle />
-                  </a>
-                </div>
-              )}
             </div>
 
             {film.synopsis && (
@@ -1805,15 +1771,8 @@ function ContactPage({ language }: { language: Language }) {
           {/* Dos vías de contacto directo bien diferenciadas visualmente */}
           <div className="contact-channels">
             <div className="contact-channel-card personal">
-              <div className="contact-channel-header">
-                <div className="contact-photo-frame">
-                  <FallbackImg alt="Patricio Plaza" className="contact-photo" src="bio/recurso-1.png" />
-                </div>
-                <div className="contact-channel-title-wrap">
-                  <span className="channel-badge">{t.personalContactBadge}</span>
-                  <h3>{t.personalContactTitle}</h3>
-                </div>
-              </div>
+              <span className="channel-badge">{t.personalContactBadge}</span>
+              <h3>{t.personalContactTitle}</h3>
               <p>{t.personalContactDesc}</p>
               <a className="channel-email-btn" href={`mailto:${CONTACT_EMAIL}`}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
