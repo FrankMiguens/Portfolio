@@ -571,6 +571,7 @@ const copy = {
       "Realizador y productor de cine de animación radicado en Buenos Aires, Argentina. Su obra combina el terror folclórico y la fantasía oscura para reflexionar sobre luchas sociales, identitarias y de derechos humanos en América Latina.",
     viewFilms: "Ver film",
     viewFilm: "Ver film",
+    viewProject: "Ver proyecto",
     viewMore: "Ver más",
     back: "Films",
     synopsis: "Sinopsis",
@@ -677,6 +678,7 @@ const copy = {
       "Patricio Plaza is an animation filmmaker and producer based in Buenos Aires, Argentina. His work blends folk horror and dark fantasy to critically examine historical and social struggles across Latin America.",
     viewFilms: "View films",
     viewFilm: "View film",
+    viewProject: "View project",
     viewMore: "View more",
     back: "Films",
     synopsis: "Synopsis",
@@ -1087,7 +1089,7 @@ function HeroCarousel({ language }: { language: Language }) {
           return slide.slug ? (
             <a
               aria-hidden={isClone}
-              aria-label={`${t.viewFilm}: ${slide.title}`}
+              aria-label={`${t.viewProject}: ${slide.title}`}
               className="hero-slide"
               href={`#/film/${slide.slug}`}
               key={position}
@@ -1115,7 +1117,7 @@ function HeroCarousel({ language }: { language: Language }) {
           className="hero-action-link"
           href={currentItem?.slug ? `#/film/${currentItem.slug}` : "#/films"}
         >
-          {t.viewFilm}
+          {t.viewProject}
           <Triangle size={9} />
         </a>
       </div>
@@ -1207,22 +1209,6 @@ function FilmCard({ film, language }: { film: Film; language: Language }) {
                 <span className="dot-sep">•</span>
                 <span>{film.genre[language]}</span>
               </p>
-              <span aria-hidden="true" className="film-card-arrow">
-                <svg
-                  aria-hidden="true"
-                  fill="none"
-                  height="15"
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  viewBox="0 0 24 24"
-                  width="15"
-                >
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                  <polyline points="12 5 19 12 12 19" />
-                </svg>
-              </span>
             </div>
           </div>
         </div>

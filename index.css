@@ -948,21 +948,7 @@ button {
 }
 
 .film-card-arrow {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  color: var(--accent);
-  background: transparent;
-  border: none;
-  flex-shrink: 0;
-  transition: transform 250ms ease, color 200ms ease;
-}
-
-.film-card:hover .film-card-arrow {
-  transform: translateX(4px);
-  color: #ffffff;
+  display: none !important;
 }
 
 /* Vista Interna de Proyecto (FilmPage) */
@@ -1809,6 +1795,13 @@ button {
   }
 }
 
+@media (max-width: 768px) {
+  /* Ocultar flechas de navegación de laureles en celulares y pantallas táctiles */
+  .laurels-arrow {
+    display: none !important;
+  }
+}
+
 @media (max-width: 680px) {
   :root {
     --page-x: 20px;
@@ -2052,6 +2045,11 @@ button {
 
   .film-gallery {
     grid-template-columns: 1fr;
+  }
+
+  /* Ocultar flechas de laureles únicamente en versión móvil */
+  .laurels-arrow {
+    display: none !important;
   }
 
   /* Barra inferior FILMS con FILMS al centro y botones de navegación en los laterales */
