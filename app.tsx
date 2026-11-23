@@ -292,11 +292,26 @@ const films: Film[] = [
       ES: "Adultos (+16)",
       EN: "Adults (16+)",
     },
-    laurelsFolder: "CarnedeDios_laureles",
+    laurelsFolder: "laureles_luzdiabla",
     laurels: [
-      "CHILEMONOS-Corto-latinoamericano-1er-lugar (1)",
-      "Laureles-2-Mardel",
-      "macaron_annecy_palme_2023",
+      "37th-galway-film-fleadh-Official-selection",
+      "cinequest_laurels_offselect",
+      "FICG-LOGO",
+      "fichier-24logo_anima-2025-official-selection",
+      "GCNN",
+      "kinoforum_official_selection_positive",
+      "LA GUARRIMBA LAURELES2025 official selection black",
+      "laurel ban",
+      "LAUREL NEGRO 2025",
+      "LAUREL xposed off selection black",
+      "LAUREL_LATINAMERICAN",
+      "macabro official S 2025 N",
+      "macaron_mifa_pitchs_black",
+      "Official selection_2025_White",
+      "official-selection-fest-ana-2022",
+      "pictoAnim_2025",
+      "ShortFest25_OFFICIAL SELECTION-K",
+      "sitges laurel",
     ],
     stills: [
       still("luzdiabla_stills_01"),
@@ -1101,8 +1116,8 @@ function BioPage({ language }: { language: Language }) {
 
           <div className="bio-thematic-blocks">
             {t.bioThemes.map((theme, index) => {
-              // Crecen únicamente de tamaño los títulos de Formación, Experiencia Profesional y Obra
-              const isProminentTitle = index === 0 || index === 1 || index === 2
+              // Todos los subtítulos temáticos de Bio tienen la misma jerarquía visual prominente
+              const isProminentTitle = index === 0 || index === 1 || index === 2 || index === 3
               return (
                 <Reveal className="bio-theme-card" key={theme.title}>
                   <h3 className={`bio-theme-title ${isProminentTitle ? "is-prominent-title" : ""}`}>
