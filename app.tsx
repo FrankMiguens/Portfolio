@@ -45,6 +45,7 @@ const HERO_DIR = "hero_pp"
 const STILLS_DIR = "stills_pp"
 const LAURELS_DIR = `${encodeURIComponent("laureles_películas")}`
 const PP_DIR = "ParasitosPerfectos"
+const VIDEOS_DIR = "videos"
 const HERO_EXT = "png"
 const STILLS_EXT = "png"
 const LAURELS_EXT = "png"
@@ -52,6 +53,7 @@ const PP_EXT = "png"
 
 const still = (name: string) => `${STILLS_DIR}/${encodeURIComponent(name)}.${STILLS_EXT}`
 const hero = (name: string) => `${HERO_DIR}/${encodeURIComponent(name)}.${HERO_EXT}`
+const heroVideo = (name: string) => `${VIDEOS_DIR}/${encodeURIComponent(name)}.mp4`
 const laurel = (folder: string, name: string) =>
   `${LAURELS_DIR}/${encodeURIComponent(folder)}/${encodeURIComponent(name)}.${LAURELS_EXT}`
 const pp = (name: string) => `${PP_DIR}/${encodeURIComponent(name)}.${PP_EXT}`
@@ -944,14 +946,104 @@ function Sidebar({
   )
 }
 
-const heroImages: { image: string; slug?: string; title?: string }[] = [
-  { image: hero("hero_01"), slug: "diarios-negros", title: "Diarios Negros" },
-  { image: hero("hero_02"), slug: "parasitos-perfectos", title: "Parásitos Perfectos" },
-  { image: hero("hero_03"), slug: "luz-diabla", title: "Luz Diabla" },
-  { image: hero("hero_04"), slug: "santa-sombra", title: "Santa Sombra" },
-  { image: hero("hero_05"), slug: "carne-de-dios", title: "Carne de Dios" },
-  { image: hero("hero_06"), slug: "el-empleo", title: "El Empleo" },
-  { image: hero("hero_07"), slug: "padre", title: "Padre" },
+function HeroVideo({
+  src,
+  poster,
+  isActive,
+  title,
+}: {
+  src: string
+  poster: string
+  isActive: boolean
+  title?: string
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const wasActiveRef = useRef(false)
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+
+    video.muted = true
+    video.defaultMuted = true
+
+    if (isActive) {
+      if (!wasActiveRef.current) {
+        try {
+          video.currentTime = 0
+        } catch {
+          /* ignore */
+        }
+      }
+      const playPromise = video.play()
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          /* ignore autoplay restrictions */
+        })
+      }
+    } else {
+      video.pause()
+    }
+
+    wasActiveRef.current = isActive
+  }, [isActive])
+
+  return (
+    <video
+      aria-label={title}
+      autoPlay
+      loop
+      muted
+      playsInline
+      poster={poster}
+      preload="auto"
+      ref={videoRef}
+      src={src}
+    />
+  )
+}
+
+const heroImages: { image: string; video?: string; slug?: string; title?: string }[] = [
+  {
+    image: hero("hero_01"),
+    video: heroVideo("BD LOOP"),
+    slug: "diarios-negros",
+    title: "Diarios Negros",
+  },
+  {
+    image: hero("hero_02"),
+    slug: "parasitos-perfectos",
+    title: "Parásitos Perfectos",
+  },
+  {
+    image: hero("hero_03"),
+    video: heroVideo("LUZ DIABLA loop"),
+    slug: "luz-diabla",
+    title: "Luz Diabla",
+  },
+  {
+    image: hero("hero_04"),
+    video: heroVideo("SASI LOOP"),
+    slug: "santa-sombra",
+    title: "Santa Sombra",
+  },
+  {
+    image: hero("hero_05"),
+    slug: "carne-de-dios",
+    title: "Carne de Dios",
+  },
+  {
+    image: hero("hero_06"),
+    video: heroVideo("EL EMPLEO LOOP"),
+    slug: "el-empleo",
+    title: "El Empleo",
+  },
+  {
+    image: hero("hero_07"),
+    video: heroVideo("PADRE LOOP"),
+    slug: "padre",
+    title: "Padre",
+  },
 ]
 
 function HeroCarousel({ language }: { language: Language }) {
@@ -1085,7 +1177,20 @@ function HeroCarousel({ language }: { language: Language }) {
       >
         {slides.map((slide, position) => {
           const isClone = position === count
-          const content = <FallbackImg alt={slide.title ?? ""} src={slide.image} />
+          const isSlideActive =
+            position === index ||
+            (position === 0 && index === count) ||
+            (position === count && index === count)
+          const content = slide.video ? (
+            <HeroVideo
+              isActive={isSlideActive}
+              poster={slide.image}
+              src={slide.video}
+              title={slide.title}
+            />
+          ) : (
+            <FallbackImg alt={slide.title ?? ""} src={slide.image} />
+          )
           return slide.slug ? (
             <a
               aria-hidden={isClone}
