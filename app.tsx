@@ -44,19 +44,16 @@ interface Film {
 const HERO_DIR = "hero_pp"
 const STILLS_DIR = "stills_pp"
 const LAURELS_DIR = `${encodeURIComponent("laureles_películas")}`
-const PP_DIR = "ParasitosPerfectos"
 const VIDEOS_DIR = "videos"
 const HERO_EXT = "png"
 const STILLS_EXT = "png"
 const LAURELS_EXT = "png"
-const PP_EXT = "png"
 
 const still = (name: string) => `${STILLS_DIR}/${encodeURIComponent(name)}.${STILLS_EXT}`
 const hero = (name: string) => `${HERO_DIR}/${encodeURIComponent(name)}.${HERO_EXT}`
 const heroVideo = (name: string) => `${VIDEOS_DIR}/${encodeURIComponent(name)}.mp4`
 const laurel = (folder: string, name: string) =>
   `${LAURELS_DIR}/${encodeURIComponent(folder)}/${encodeURIComponent(name)}.${LAURELS_EXT}`
-const pp = (name: string) => `${PP_DIR}/${encodeURIComponent(name)}.${PP_EXT}`
 
 function Triangle({ dir = "right", size = 10 }: { dir?: "left" | "right"; size?: number }) {
   return (
@@ -294,27 +291,6 @@ const films: Film[] = [
       ES: "Adultos (+16)",
       EN: "Adults (16+)",
     },
-    laurelsFolder: "laureles_luzdiabla",
-    laurels: [
-      "37th-galway-film-fleadh-Official-selection",
-      "cinequest_laurels_offselect",
-      "FICG-LOGO",
-      "fichier-24logo_anima-2025-official-selection",
-      "GCNN",
-      "kinoforum_official_selection_positive",
-      "LA GUARRIMBA LAURELES2025 official selection black",
-      "laurel ban",
-      "LAUREL NEGRO 2025",
-      "LAUREL xposed off selection black",
-      "LAUREL_LATINAMERICAN",
-      "macabro official S 2025 N",
-      "macaron_mifa_pitchs_black",
-      "Official selection_2025_White",
-      "official-selection-fest-ana-2022",
-      "pictoAnim_2025",
-      "ShortFest25_OFFICIAL SELECTION-K",
-      "sitges laurel",
-    ],
     stills: [
       still("luzdiabla_stills_01"),
       still("luzdiabla_stills_02"),
